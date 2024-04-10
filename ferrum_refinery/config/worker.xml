@@ -4,7 +4,7 @@
     <port>40001</port>
     <data.dir>refinery/worker/</data.dir>
     <foreman.hostname>foreman</foreman.hostname>
-    <foremman.port>40000</foremman.port>
+    <foreman.port>40000</foreman.port>
     <namenode.hostname>namenode</namenode.hostname>
     <namenode.port>50000</namenode.port>
 </workerConfig>
