@@ -1,0 +1,77 @@
+/*
+  client_protocol is an RPC protocol that the hdfs clients uses to communicate with the NameNode
+
+  The client_protocol supports file operations and directory operations
+
+  1. File Operations: get, put, delete
+  2. Directory Operations: ls
+ */
+
+syntax = "proto3";
+import "common.proto";
+
+package ferrum_deposit.proto;
+
+service DepositNameNodeService {
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc Ls(LsRequest) returns (LsResponse);
+  rpc PutFile(PutFileRequest) returns (PutFileResponse);
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+  rpc ConfirmFilePut(ConfirmFilePutRequest) returns (ConfirmFilePutResponse);
+}
+
+
+
+message GetRequest {
+  string path = 1;
+}
+
+message GetResponse {
+  repeated BlockMetadata file_blocks = 1;
+}
+
+message LsRequest {
+  string path = 1;
+}
+
+message LsResponse {
+  repeated string inodes = 1;
+}
+
+message PutFileRequest {
+  string path = 1;
+  uint64 file_size = 2;
+}
+
+message PutFileResponse {
+  repeated BlockMetadata blocks = 1;
+}
+
+message ConfirmFilePutRequest {
+  string path = 1;
+  repeated string block_ids = 2;
+}
+
+
+message ConfirmFilePutResponse {
+  bool success = 1;
+}
+
+message DeleteFileRequest {
+  string path = 1;
+}
+
+message DeleteFileResponse {
+  repeated BlockMetadata file_blocks = 1;
+}
+
+message ConfirmFileDeleteRequest {
+  bool success = 1;
+  repeated string block_ids = 2;
+}
+
+message ConfirmFileDeleteResponse {
+    bool success = 1;
+}
+
+

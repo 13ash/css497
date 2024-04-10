@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<depositConfig>
+    <data.dir>/deposit/</data.dir>
+    <namenode.address>namenode:50000</namenode.address>
+</depositConfig>

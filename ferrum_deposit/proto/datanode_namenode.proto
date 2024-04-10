@@ -1,0 +1,56 @@
+
+syntax = "proto3";
+import "common.proto";
+
+package ferrum_deposit.proto;
+
+service DataNodeNameNodeService {
+  rpc SendHeartBeat(HeartBeatRequest) returns (HeartBeatResponse) {}
+  rpc RegisterWithNamenode(RegistrationRequest) returns (RegistrationResponse) {}
+  rpc SendBlockReport(BlockReportRequest) returns (BlockReportResponse) {}
+  rpc WriteBlockUpdate(WriteBlockUpdateRequest) returns (WriteBlockUpdateResponse) {}
+
+}
+
+message HeartBeatRequest {
+  string datanode_id = 1;
+  NodeHealthMetrics health_metrics = 2;
+}
+
+message HeartBeatResponse {
+  bool success = 1;
+}
+
+message RegistrationRequest {
+  string datanode_id = 1;
+  string hostname_port = 2;
+  NodeHealthMetrics health_metrics = 3;
+}
+
+message NodeHealthMetrics {
+  float cpu_load = 1;
+  uint64 memory_usage = 2;
+  uint64 disk_space = 3;
+}
+
+message RegistrationResponse {
+  bool success = 1;
+}
+
+message BlockReportRequest {
+  repeated string block_ids = 1;
+}
+
+message BlockReportResponse {
+  repeated string block_ids = 1;
+}
+
+
+message WriteBlockUpdateResponse {
+  bool success = 1;
+}
+
+message WriteBlockUpdateRequest {
+  string block_id = 1;
+  BlockStatus status = 2;
+}

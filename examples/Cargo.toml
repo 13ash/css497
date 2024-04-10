@@ -1,0 +1,25 @@
+[package]
+name = "examples"
+version = "1.0.0"
+edition = "2021"
+publish = false
+
+
+[dependencies]
+ferrum_refinery = {path = "../ferrum_refinery" }
+ferrum_deposit = {path = "../ferrum_deposit"}
+async-trait = "0.1.79"
+reqwest = "0.12.3"
+serde_json = "1.0.115"
+tokio = "1.37.0"
+
+[dev-dependencies]
+
+
+[[example]]
+name = "word_count"
+path = "word_count.rs"
+
+[[example]]
+name = "log_error"
+path = "log_error.rs"

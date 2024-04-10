@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = [
+    "ferrum_refinery",
+# Internal
+"examples", "ferrum_deposit",
+]
+

@@ -1,0 +1,21 @@
+[package]
+name = "ferrum_refinery"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.71.0"
+license = "MIT"
+
+[lib]
+name = "ferrum_refinery"
+path = "src/lib.rs"
+
+[dependencies]
+ferrum_deposit = {path = "../ferrum_deposit"}
+tokio = {version = "1.37.0", features = ["full"]}
+async-trait = "0.1.79"
+serde = { version = "1.0.197", features = ["derive"] }
+uuid = { version = "1.8.0", features = ["v4"] }
+
+
+
+[dev-dependencies]
