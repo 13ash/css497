@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package ferrum_refinery.proto;
+
+service FoundryService {
+  rpc SendHeartBeat(HeartbeatRequest) returns (HeartBeatResponse) {}
+
+}
+
+message HeartbeatRequest {
+  string worker_id = 1;
+  HealthMetrics health_metrics = 2;
+}
+
+message HeartBeatResponse {
+  bool success = 1;
+}
+
+message HealthMetrics {
+  float cpu_load = 1;
+  uint64 memory_usage = 2;
+  uint64 disk_space = 3;
+}
+
+

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<workerConfig>
+    <hostname>worker</hostname>
+    <port>40001</port>
+    <data.dir>refinery/worker/</data.dir>
+    <foreman.hostname>foreman</foreman.hostname>
+    <formman.port>40000</formman.port>
+    <namenode.hostname>namenode</namenode.hostname>
+    <namenode.port>50000</namenode.port>
+</workerConfig>

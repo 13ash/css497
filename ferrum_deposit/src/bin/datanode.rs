@@ -1,11 +1,11 @@
 use chrono::Local;
-use tonic::transport::Server;
-use tracing::error;
-use tracing_subscriber::fmt::format::FmtSpan;
 use ferrum_deposit::config::datanode_config::DataNodeConfig;
 use ferrum_deposit::datanode::datanode::DataNode;
 use ferrum_deposit::error::Result;
 use ferrum_deposit::proto::deposit_data_node_service_server::DepositDataNodeServiceServer;
+use tonic::transport::Server;
+use tracing::error;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 #[tokio::main]
 async fn main() -> Result<()> {

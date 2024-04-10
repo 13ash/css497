@@ -1,10 +1,12 @@
-use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use ferrum_deposit::config::deposit_config::DepositConfig;
 use ferrum_deposit::deposit::ferrum_deposit_client::{Client, FerrumDepositClient};
 use ferrum_deposit::error::{FerrumDepositError, Result};
 use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServiceClient;
-use ferrum_deposit::proto::{ConfirmFilePutRequest, DeleteFileRequest, GetRequest, LsRequest, PutFileRequest};
+use ferrum_deposit::proto::{
+    ConfirmFilePutRequest, DeleteFileRequest, GetRequest, LsRequest, PutFileRequest,
+};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -40,7 +42,8 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
     let config = DepositConfig::from_xml_file("/config/deposit.xml")?;
     let mut namenode_client =
-        DepositNameNodeServiceClient::connect(format!("http://{}", config.namenode_address)).await?;
+        DepositNameNodeServiceClient::connect(format!("http://{}", config.namenode_address))
+            .await?;
     let deposit_client = FerrumDepositClient::from_config(config);
 
     match &args.command {

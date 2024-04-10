@@ -1,2 +1,2 @@
+pub mod errors;
 pub mod refinery;
-mod errors;

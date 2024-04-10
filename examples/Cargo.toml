@@ -19,7 +19,3 @@ tokio = "1.37.0"
 [[example]]
 name = "word_count"
 path = "word_count.rs"
-
-[[example]]
-name = "log_error"
-path = "log_error.rs"

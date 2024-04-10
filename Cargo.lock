@@ -537,9 +537,14 @@ name = "ferrum_refinery"
 version = "1.0.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "ferrum_deposit",
+ "prost",
  "serde",
+ "serde-xml-rs",
  "tokio",
+ "tonic",
+ "tonic-build",
  "uuid",
 ]
 

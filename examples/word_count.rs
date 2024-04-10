@@ -2,7 +2,7 @@ use ferrum_deposit::config::deposit_config::DepositConfig;
 use ferrum_deposit::deposit::ferrum_deposit_client::FerrumDepositClient;
 use ferrum_refinery::api::map::Mapper;
 use ferrum_refinery::api::reduce::Reducer;
-use ferrum_refinery::framework::refinery::{RefineryBuilder};
+use ferrum_refinery::framework::refinery::RefineryBuilder;
 
 struct WordCounter;
 impl Mapper<usize, String, String, i32> for WordCounter {
@@ -15,7 +15,6 @@ impl Mapper<usize, String, String, i32> for WordCounter {
     }
 }
 
-
 struct WordCountReducer;
 
 impl Reducer<String, i32, String, i32> for WordCountReducer {
@@ -26,7 +25,6 @@ impl Reducer<String, i32, String, i32> for WordCountReducer {
 }
 
 fn main() {
-
     // configure the deposit client
 
     let deposit = FerrumDepositClient::from_config(DepositConfig {
@@ -37,11 +35,15 @@ fn main() {
     // create a refinery
     let refinery = RefineryBuilder::new()
         .with_deposit(deposit)
-        .with_input_location("inputLocation".to_string())
-        .with_output_location("outputLocation".to_string())
-        .with_num_mappers(10)
-        .with_num_reducers(5)
-        .build().unwrap();
+        .with_input_location("deposit://path/to/input".to_string())
+        .with_output_location("deposit://path/to/output".to_string())
+        .with_mappers(vec![
+            "hostname:port".to_string(),
+            "hostname.port".to_string(),
+        ])
+        .with_reducers(vec!["hostname:port".to_string()])
+        .build()
+        .unwrap();
 
     // create a mapper
     let word_counter_mapper = WordCounter;
@@ -50,6 +52,7 @@ fn main() {
     let word_count_reducer = WordCountReducer;
 
     // submit a job to the refinery
-    refinery.refine(word_counter_mapper, word_count_reducer).unwrap();
-
+    refinery
+        .refine(word_counter_mapper, word_count_reducer)
+        .unwrap();
 }

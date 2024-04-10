@@ -10,16 +10,19 @@ use tokio::sync::mpsc;
 use tonic::Request;
 
 use crate::block::{BLOCK_CHUNK_SIZE, BLOCK_SIZE};
+use crate::config::deposit_config::DepositConfig;
+use crate::proto::deposit_data_node_service_client::DepositDataNodeServiceClient;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use tonic::codegen::tokio_stream::wrappers::ReceiverStream;
-use crate::config::deposit_config::DepositConfig;
-use crate::proto::deposit_data_node_service_client::DepositDataNodeServiceClient;
 
 #[async_trait]
 pub trait Client {
-    async fn get(&self, final_data_path: PathBuf, response: GetResponse)
-        -> Result<(), FerrumDepositError>;
+    async fn get(
+        &self,
+        final_data_path: PathBuf,
+        response: GetResponse,
+    ) -> Result<(), FerrumDepositError>;
     async fn put(
         &self,
         local_file: File,
@@ -35,7 +38,7 @@ impl FerrumDepositClient {
     pub fn from_config(config: DepositConfig) -> Self {
         FerrumDepositClient {
             data_dir: config.data_dir,
-            namenode_address: config.namenode_address
+            namenode_address: config.namenode_address,
         }
     }
 }
@@ -151,7 +154,9 @@ impl Client for FerrumDepositClient {
             local_file
                 .seek(SeekFrom::Start(offset))
                 .await
-                .map_err(|_| FerrumDepositError::PutError(String::from("Failed to seek in file")))?;
+                .map_err(|_| {
+                    FerrumDepositError::PutError(String::from("Failed to seek in file"))
+                })?;
 
             let mut block_buffer = vec![0; BLOCK_SIZE];
             let mut total_read = 0;
@@ -163,10 +168,9 @@ impl Client for FerrumDepositClient {
                 }
 
                 let mut read_buffer = vec![0; MAX_READ_BUFFER_SIZE];
-                let read_bytes = local_file
-                    .read(&mut read_buffer)
-                    .await
-                    .map_err(|_| FerrumDepositError::PutError(String::from("Failed to read from file")))?;
+                let read_bytes = local_file.read(&mut read_buffer).await.map_err(|_| {
+                    FerrumDepositError::PutError(String::from("Failed to read from file"))
+                })?;
 
                 if read_bytes == 0 {
                     break; // EOF reached
@@ -184,7 +188,9 @@ impl Client for FerrumDepositClient {
                 let mut datanode_client =
                     DepositDataNodeServiceClient::connect(format!("http://{}", addr))
                         .await
-                        .map_err(|_| FerrumDepositError::PutError(String::from("unable to connect")))?;
+                        .map_err(|_| {
+                            FerrumDepositError::PutError(String::from("unable to connect"))
+                        })?;
 
                 let start_put_block_stream_request = Request::new(BlockStreamInfo {
                     block_id: block.block_id.clone(),
@@ -194,7 +200,9 @@ impl Client for FerrumDepositClient {
                     .start_block_stream(start_put_block_stream_request)
                     .await;
                 if response.is_err() {
-                    return Err(FerrumDepositError::PutError("Failed to start block stream.".to_string()));
+                    return Err(FerrumDepositError::PutError(
+                        "Failed to start block stream.".to_string(),
+                    ));
                 }
 
                 let (client, server) = mpsc::channel::<BlockChunk>(10);

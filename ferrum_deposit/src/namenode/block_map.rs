@@ -37,7 +37,9 @@ impl BlockMap {
         F: FnOnce(&mut BlockMetadata),
     {
         match self.blocks.get_mut(&block_id) {
-            None => Err(FerrumDepositError::BlockMapError(String::from("Block not found"))),
+            None => Err(FerrumDepositError::BlockMapError(String::from(
+                "Block not found",
+            ))),
             Some(block_metadata) => {
                 modify(block_metadata);
                 Ok(())
@@ -56,14 +58,18 @@ impl BlockMapManager for RwLock<BlockMap> {
     /// Retrieves a block and its associated DataNodes.
     async fn get_block(&self, block_id: Uuid) -> Result<BlockMetadata, FerrumDepositError> {
         match self.read().await.blocks.get(&block_id) {
-            None => Err(FerrumDepositError::BlockMapError(String::from("Block not found."))),
+            None => Err(FerrumDepositError::BlockMapError(String::from(
+                "Block not found.",
+            ))),
             Some(block) => Ok(block.clone()),
         }
     }
 
     async fn remove_block(&self, block_id: Uuid) -> Result<(), FerrumDepositError> {
         match self.write().await.blocks.remove(&block_id) {
-            None => Err(FerrumDepositError::BlockMapError(String::from("Block not found."))),
+            None => Err(FerrumDepositError::BlockMapError(String::from(
+                "Block not found.",
+            ))),
             Some(_) => Ok(()),
         }
     }

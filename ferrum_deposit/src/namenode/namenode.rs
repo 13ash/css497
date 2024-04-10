@@ -22,9 +22,9 @@ use crate::proto::{
 };
 
 use crate::namenode::edit_log::{EditLog, EditLogManager, Operation};
+use crate::proto::deposit_name_node_service_server::DepositNameNodeService;
 #[cfg(test)]
 use mockall::automock;
-use crate::proto::deposit_name_node_service_server::DepositNameNodeService;
 
 #[derive(Debug, Clone)]
 pub enum INode {
@@ -87,7 +87,11 @@ impl DataNode {
 #[cfg_attr(test, automock)]
 #[async_trait]
 trait NamespaceManager {
-    async fn add_inode_to_namespace(&self, path: PathBuf, inode: INode) -> Result<(), FerrumDepositError>;
+    async fn add_inode_to_namespace(
+        &self,
+        path: PathBuf,
+        inode: INode,
+    ) -> Result<(), FerrumDepositError>;
     async fn remove_inode_from_namespace(&self, path: PathBuf) -> Result<(), FerrumDepositError>;
     async fn ls_inodes(&self, path: PathBuf) -> Result<Vec<String>, FerrumDepositError>;
     async fn add_block_to_file(
@@ -96,7 +100,10 @@ trait NamespaceManager {
         block_metadata: BlockMetadata,
     ) -> Result<Vec<Uuid>, FerrumDepositError>;
 
-    async fn get_file_blocks(&self, path: PathBuf) -> Result<Vec<BlockMetadata>, FerrumDepositError>;
+    async fn get_file_blocks(
+        &self,
+        path: PathBuf,
+    ) -> Result<Vec<BlockMetadata>, FerrumDepositError>;
 }
 
 #[cfg_attr(test, automock)]
@@ -142,7 +149,12 @@ impl NameNode {
     }
 
     pub async fn flush_edit_log(&self) {
-        self.edit_log.write().await.flush().await.expect("failed to flush edit log.");
+        self.edit_log
+            .write()
+            .await
+            .flush()
+            .await
+            .expect("failed to flush edit log.");
     }
 
     fn traverse_to_inode<'a>(
@@ -182,7 +194,11 @@ impl NameNode {
                         }
                     }
                 }
-                _ => return Err(FerrumDepositError::InvalidPathError("Invalid path".to_string())),
+                _ => {
+                    return Err(FerrumDepositError::InvalidPathError(
+                        "Invalid path".to_string(),
+                    ))
+                }
             }
         }
         Ok(node)
@@ -191,11 +207,17 @@ impl NameNode {
 
 #[async_trait]
 impl NamespaceManager for NameNode {
-    async fn add_inode_to_namespace(&self, path: PathBuf, inode: INode) -> Result<(), FerrumDepositError> {
+    async fn add_inode_to_namespace(
+        &self,
+        path: PathBuf,
+        inode: INode,
+    ) -> Result<(), FerrumDepositError> {
         let mut namespace_guard = self.namespace.write().await;
 
         if path.components().count() == 0 {
-            return Err(FerrumDepositError::InvalidPathError("Empty path".to_string()));
+            return Err(FerrumDepositError::InvalidPathError(
+                "Empty path".to_string(),
+            ));
         }
 
         let mut current_node = &mut *namespace_guard;
@@ -253,13 +275,17 @@ impl NamespaceManager for NameNode {
         let mut namespace_guard = self.namespace.write().await;
 
         if path.components().count() == 0 {
-            return Err(FerrumDepositError::InvalidPathError("Empty path".to_string()));
+            return Err(FerrumDepositError::InvalidPathError(
+                "Empty path".to_string(),
+            ));
         }
 
         // Collect path components to a Vec to allow indexing
         let components: Vec<_> = path.iter().collect();
         if components.is_empty() {
-            return Err(FerrumDepositError::InvalidPathError("Empty path".to_string()));
+            return Err(FerrumDepositError::InvalidPathError(
+                "Empty path".to_string(),
+            ));
         }
 
         let mut current_node = &mut *namespace_guard;
@@ -361,9 +387,9 @@ impl NamespaceManager for NameNode {
         let inode = Self::traverse_to_inode(&mut namespace_write_guard, path)?;
 
         return match inode {
-            INode::Directory { .. } => {
-                Err(FerrumDepositError::FileSystemError("File not found.".to_string()))
-            }
+            INode::Directory { .. } => Err(FerrumDepositError::FileSystemError(
+                "File not found.".to_string(),
+            )),
             INode::File {
                 ref mut block_ids, ..
             } => {
@@ -375,7 +401,10 @@ impl NamespaceManager for NameNode {
     }
 
     // Method to get file blocks retrieves BlockMetadata from BlockMap
-    async fn get_file_blocks(&self, path: PathBuf) -> Result<Vec<BlockMetadata>, FerrumDepositError> {
+    async fn get_file_blocks(
+        &self,
+        path: PathBuf,
+    ) -> Result<Vec<BlockMetadata>, FerrumDepositError> {
         let namespace_read_guard = self.namespace.read().await;
 
         let mut current_node = &*namespace_read_guard;
@@ -579,9 +608,9 @@ impl DepositNameNodeService for Arc<NameNode> {
         let file_size = inner_request.file_size;
 
         if file_size == 0u64 {
-            return Err(Status::from(FerrumDepositError::FileSystemError(String::from(
-                "Invalid file size.",
-            ))));
+            return Err(Status::from(FerrumDepositError::FileSystemError(
+                String::from("Invalid file size."),
+            )));
         }
 
         let num_blocks = (file_size + BLOCK_SIZE as u64 - 1) / BLOCK_SIZE as u64;
@@ -716,7 +745,9 @@ mod tests {
             .expect_add_inode_to_namespace()
             .times(1)
             .returning(|_path, _inode| {
-                Err(FerrumDepositError::InvalidPathError("Empty Path".to_string()))
+                Err(FerrumDepositError::InvalidPathError(
+                    "Empty Path".to_string(),
+                ))
             });
         let result = mock_namespace_manager
             .add_inode_to_namespace(test_path, test_inode)
@@ -724,7 +755,9 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FerrumDepositError::InvalidPathError("Empty Path".to_string()))
+            Err(FerrumDepositError::InvalidPathError(
+                "Empty Path".to_string()
+            ))
         );
     }
 
@@ -805,7 +838,11 @@ mod tests {
         mock_namespace_manager
             .expect_remove_inode_from_namespace()
             .times(1)
-            .returning(|_path| Err(FerrumDepositError::InvalidPathError(String::from("Empty path"))));
+            .returning(|_path| {
+                Err(FerrumDepositError::InvalidPathError(String::from(
+                    "Empty path",
+                )))
+            });
 
         let result = mock_namespace_manager
             .remove_inode_from_namespace(test_path)
@@ -813,7 +850,9 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FerrumDepositError::InvalidPathError(String::from("Empty path")))
+            Err(FerrumDepositError::InvalidPathError(String::from(
+                "Empty path"
+            )))
         );
     }
 

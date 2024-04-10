@@ -1,6 +1,12 @@
 use crate::block::BLOCK_CHUNK_SIZE;
 use crate::config::datanode_config::DataNodeConfig;
 use crate::error::FerrumDepositError;
+use crate::proto::data_node_name_node_service_client::DataNodeNameNodeServiceClient;
+use crate::proto::deposit_data_node_service_server::DepositDataNodeService;
+use crate::proto::{
+    BlockChunk, BlockReportRequest, BlockStreamInfo, GetBlockRequest, HeartBeatRequest,
+    NodeHealthMetrics, RegistrationRequest, RegistrationResponse, TransferStatus,
+};
 use adler::Adler32;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -19,9 +25,6 @@ use tonic::transport::Channel;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info};
 use uuid::Uuid;
-use crate::proto::data_node_name_node_service_client::DataNodeNameNodeServiceClient;
-use crate::proto::{BlockChunk, BlockReportRequest, BlockStreamInfo, GetBlockRequest, HeartBeatRequest, NodeHealthMetrics, RegistrationRequest, RegistrationResponse, TransferStatus};
-use crate::proto::deposit_data_node_service_server::DepositDataNodeService;
 
 pub struct BlockInfo {
     pub id: String,
@@ -108,7 +111,9 @@ trait DataNodeManager {
     async fn start_heartbeat_worker(&self);
     async fn start_block_report_worker(&self);
     async fn start_metrics_worker(&self);
-    async fn register_with_namenode(&self) -> Result<Response<RegistrationResponse>, FerrumDepositError>;
+    async fn register_with_namenode(
+        &self,
+    ) -> Result<Response<RegistrationResponse>, FerrumDepositError>;
 }
 
 #[async_trait]
@@ -231,7 +236,9 @@ impl DataNodeManager for DataNode {
         });
     }
 
-    async fn register_with_namenode(&self) -> Result<Response<RegistrationResponse>, FerrumDepositError> {
+    async fn register_with_namenode(
+        &self,
+    ) -> Result<Response<RegistrationResponse>, FerrumDepositError> {
         let metrics_guard = self.metrics.lock().await;
         let request = RegistrationRequest {
             datanode_id: self.id.to_string(),
@@ -250,7 +257,9 @@ impl DataNodeManager for DataNode {
             .register_with_namenode(request)
             .await
             .map_err(|_| {
-                FerrumDepositError::RegistrationError(String::from("Failed to register with Namenode."))
+                FerrumDepositError::RegistrationError(String::from(
+                    "Failed to register with Namenode.",
+                ))
             }) {
             Ok(response) => Ok(response),
             Err(e) => Err(e),
@@ -281,19 +290,17 @@ impl DepositDataNodeService for DataNode {
         let mut file = match File::create(&file_path).await {
             Ok(file) => file,
             Err(e) => {
-                return Err(Status::from(FerrumDepositError::PutBlockStreamedError(format!(
-                    "Failed to create file: {}",
-                    e
-                ))))
+                return Err(Status::from(FerrumDepositError::PutBlockStreamedError(
+                    format!("Failed to create file: {}", e),
+                )))
             }
         };
 
         // Write the first chunk's data to the file
         if let Err(e) = file.write_all(&first_chunk.chunked_data).await {
-            return Err(Status::from(FerrumDepositError::PutBlockStreamedError(format!(
-                "Failed to write to file: {}",
-                e
-            ))));
+            return Err(Status::from(FerrumDepositError::PutBlockStreamedError(
+                format!("Failed to write to file: {}", e),
+            )));
         }
 
         // Loop to process remaining chunks
@@ -302,10 +309,9 @@ impl DepositDataNodeService for DataNode {
             let block_chunk = match chunk_result {
                 Ok(chunk) => chunk,
                 Err(e) => {
-                    return Err(Status::from(FerrumDepositError::PutBlockStreamedError(format!(
-                        "Failed to read chunk: {}",
-                        e
-                    ))))
+                    return Err(Status::from(FerrumDepositError::PutBlockStreamedError(
+                        format!("Failed to read chunk: {}", e),
+                    )))
                 }
             };
 
@@ -317,10 +323,9 @@ impl DepositDataNodeService for DataNode {
             if block_chunk.checksum == checksum && seq == block_chunk.chunk_seq {
                 // Write the chunk's data to the file
                 if let Err(e) = file.write_all(&block_chunk.chunked_data).await {
-                    return Err(Status::from(FerrumDepositError::PutBlockStreamedError(format!(
-                        "Failed to write to file: {}",
-                        e
-                    ))));
+                    return Err(Status::from(FerrumDepositError::PutBlockStreamedError(
+                        format!("Failed to write to file: {}", e),
+                    )));
                 }
                 seq += 1;
             } else {

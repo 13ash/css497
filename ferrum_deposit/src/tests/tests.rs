@@ -1,16 +1,18 @@
 #[cfg(test)]
 mod tests {
     use crate::block::{BlockMetadata, BlockStatus, BLOCK_SIZE};
+    use crate::config::deposit_config::DepositConfig;
     use crate::datanode::datanode::{BlockInfo, DataNode, HealthMetrics};
+    use crate::deposit::ferrum_deposit_client::{Client, FerrumDepositClient};
     use crate::error::FerrumDepositError::PutError;
     use crate::namenode;
     use crate::namenode::namenode::{DataNodeStatus, INode, NameNode};
     use crate::proto::data_node_name_node_service_client::DataNodeNameNodeServiceClient;
     use crate::proto::data_node_name_node_service_server::DataNodeNameNodeServiceServer;
+    use crate::proto::deposit_data_node_service_server::DepositDataNodeServiceServer;
     use crate::proto::{
         BlockReportRequest, GetResponse, HeartBeatRequest, NodeHealthMetrics, PutFileResponse,
     };
-    use crate::deposit::ferrum_deposit_client::{Client, FerrumDepositClient};
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -21,8 +23,6 @@ mod tests {
     use tokio_test::{assert_err, assert_ok};
     use tonic::transport::Server;
     use uuid::Uuid;
-    use crate::config::deposit_config::DepositConfig;
-    use crate::proto::deposit_data_node_service_server::DepositDataNodeServiceServer;
 
     const DATANODE_UUID: &str = "00000000-1111-2222-3333-444444444444";
     const NAMENODE_UUID: &str = "11111111-1111-2222-3333-444444444444";

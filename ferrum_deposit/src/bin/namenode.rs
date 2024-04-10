@@ -1,12 +1,12 @@
 use chrono::Local;
-use std::sync::Arc;
-use std::time::Duration;
-use tonic::transport::Server;
 use ferrum_deposit::config::namenode_config::NameNodeConfig;
 use ferrum_deposit::error::Result;
 use ferrum_deposit::namenode::namenode::NameNode;
 use ferrum_deposit::proto::data_node_name_node_service_server::DataNodeNameNodeServiceServer;
 use ferrum_deposit::proto::deposit_name_node_service_server::DepositNameNodeServiceServer;
+use std::sync::Arc;
+use std::time::Duration;
+use tonic::transport::Server;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
     let namenode_clone = namenode_arc.clone();
 
     tokio::spawn(async move {
-       let mut interval = tokio::time::interval(Duration::from_millis(config.flush_interval));
+        let mut interval = tokio::time::interval(Duration::from_millis(config.flush_interval));
 
         loop {
             interval.tick().await;

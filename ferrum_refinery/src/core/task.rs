@@ -24,8 +24,7 @@ pub enum InputType {
 /// A single Job has many tasks, which are executed across many nodes
 #[derive(Debug, Clone)]
 pub struct Task {
-    pub task_id : Uuid,
+    pub task_id: Uuid,
     pub job_id: Uuid,
-    pub task_type : TaskType,
+    pub task_type: TaskType,
 }
-
