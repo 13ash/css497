@@ -25,7 +25,7 @@ pub struct Foreman {
     pub id: Uuid,
     pub hostname: String,
     pub port: u16,
-    tasks: Arc<Mutex<HashMap<Uuid, Task>>>, // map to track tasks
+    tasks: Arc<Mutex<HashMap<Uuid, Box<dyn Task>>>>, // map to track tasks
     workers: Arc<Mutex<HashMap<Uuid, Worker>>>, // map to track workers
 }
 

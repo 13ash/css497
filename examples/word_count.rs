@@ -1,12 +1,15 @@
+use async_trait::async_trait;
 use ferrum_deposit::config::deposit_config::DepositConfig;
 use ferrum_deposit::deposit::ferrum_deposit_client::FerrumDepositClient;
-use ferrum_refinery::api::map::Mapper;
+use ferrum_refinery::api::map::{AsyncMapper};
 use ferrum_refinery::api::reduce::Reducer;
 use ferrum_refinery::framework::refinery::RefineryBuilder;
 
 struct WordCounter;
-impl Mapper<usize, String, String, i32> for WordCounter {
-    fn map(&self, _key: usize, value: String) -> Vec<(String, i32)> {
+
+#[async_trait]
+impl AsyncMapper<usize, String, String, i32> for WordCounter {
+    async fn map(&self, _key: usize, value: String) -> Vec<(String, i32)> {
         let word_counts: Vec<(String, i32)> = value
             .split_whitespace()
             .map(|word| (word.to_string(), 1))

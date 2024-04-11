@@ -1,7 +1,7 @@
-use crate::api::map::Mapper;
 use crate::api::reduce::Reducer;
 use crate::framework::errors::FerrumRefineryError;
 use ferrum_deposit::deposit::ferrum_deposit_client::FerrumDepositClient;
+use crate::api::map::AsyncMapper;
 
 pub struct Refinery {
     pub input_location: String,
@@ -99,7 +99,7 @@ impl Refinery {
         _reducer: R,
     ) -> Result<(), FerrumRefineryError>
     where
-        M: Mapper<ItemKey, ItemValue, IntermediateKey, IntermediateValue>,
+        M: AsyncMapper<ItemKey, ItemValue, IntermediateKey, IntermediateValue>,
         R: Reducer<IntermediateKey, IntermediateValue, FinalKey, FinalValue>,
     {
         // logic to start the map reduce process
