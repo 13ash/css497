@@ -2,4 +2,6 @@
 <foremanConfig>
     <hostname>foreman</hostname>
     <port>40000</port>
+    <namenode.hostname>namenode</namenode.hostname>
+    <namenode.port>50000</namenode.port>
 </foremanConfig>

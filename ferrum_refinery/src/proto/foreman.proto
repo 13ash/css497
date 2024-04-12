@@ -2,9 +2,8 @@ syntax = "proto3";
 
 package ferrum_refinery.proto;
 
-service FoundryService {
+service ForemanService {
   rpc SendHeartBeat(HeartbeatRequest) returns (HeartBeatResponse) {}
-
 }
 
 message HeartbeatRequest {
@@ -20,6 +19,14 @@ message HealthMetrics {
   float cpu_load = 1;
   uint64 memory_usage = 2;
   uint64 disk_space = 3;
+}
+
+message WorkRequest {
+  string worker_id = 1;
+}
+
+message WorkResponse {
+  optional string block_id = 1;
 }
 
 

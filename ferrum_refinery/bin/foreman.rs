@@ -1,14 +1,14 @@
 use chrono::Local;
-use ferrum_refinery::config::foreman_config::ForemanConfig;
+use ferrum_refinery::config::refinery_config::RefineryConfig;
 use ferrum_refinery::core::foreman::Foreman;
 use ferrum_refinery::framework::errors::Result;
-use ferrum_refinery::proto::foundry_service_server::FoundryServiceServer;
+use ferrum_refinery::proto::foreman_service_server::ForemanServiceServer;
 use tonic::transport::Server;
 
 /// Foreman binary program
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = ForemanConfig::from_xml_file("config/foreman.xml")?;
+    let config = RefineryConfig::from_xml_file("config/refinery.xml")?;
 
     let foreman = Foreman::from_config(config).await?;
     let addr = format!("{}:{}", foreman.hostname, foreman.port);
@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
     println!("Listening on: {}", addr);
 
     Server::builder()
-        .add_service(FoundryServiceServer::new(foreman))
+        .add_service(ForemanServiceServer::new(foreman))
         .serve(addr.parse().unwrap())
         .await?;
 
