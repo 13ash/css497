@@ -536,7 +536,9 @@ dependencies = [
 name = "ferrum_refinery"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "async-trait",
+ "bytes",
  "chrono",
  "ferrum_deposit",
  "prost",

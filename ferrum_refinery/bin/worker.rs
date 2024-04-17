@@ -1,9 +1,10 @@
+use async_trait::async_trait;
 use chrono::Local;
-use ferrum_refinery::api::map::AsyncMapper;
-use ferrum_refinery::api::reduce::AsyncReducer;
+use ferrum_refinery::api::map::{KeyValue, MapOutput, Mapper};
+use ferrum_refinery::api::reduce::Reducer;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use async_trait::async_trait;
+use bytes::Bytes;
 use tonic::transport::Server;
 
 use ferrum_refinery::config::refinery_config::RefineryConfig;
@@ -16,17 +17,15 @@ pub struct ExampleMapper;
 pub struct ExampleReducer;
 
 #[async_trait]
-impl AsyncMapper<usize, i32, String, i32> for ExampleMapper {
-    async fn map(&self, key: usize, value: i32) -> Vec<(String, i32)> {
-        todo!() // write your map
+impl Mapper for ExampleMapper {
+    async fn map(&self, kv: KeyValue) -> MapOutput {
+        todo!()
     }
 }
 
-// your reducer impl here
-#[async_trait]
-impl AsyncReducer<i32, String, i32, i32> for ExampleReducer {
-    async fn reduce(&self, key: i32, values: Vec<String>) -> Vec<(i32, i32)> {
-        todo!() // write your reduce
+impl Reducer for ExampleReducer {
+    async fn reduce(&self, key: Bytes, values: Box<dyn Iterator<Item=Bytes> + '_>) -> anyhow::Result<Bytes> {
+        todo!()
     }
 }
 
@@ -53,8 +52,8 @@ async fn main() -> Result<()> {
         .add_service(WorkerServiceServer::new(worker))
         .serve(SocketAddr::new(
             IpAddr::from_str(hostname.as_str()).unwrap(),
-            port)
-        )
+            port,
+        ))
         .await?;
 
     Ok(())

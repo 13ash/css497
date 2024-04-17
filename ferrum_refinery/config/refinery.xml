@@ -5,6 +5,7 @@
     <worker.data.dir>refinery/worker/</worker.data.dir>
     <worker.hostname>worker</worker.hostname>
     <worker.port>40001</worker.port>
+    <worker.poll.interval>3000</worker.poll.interval>
     <deposit.namenode.hostname>namenode</deposit.namenode.hostname>
     <deposit.namenode.port>50000</deposit.namenode.port>
     <deposit.datanode.hostname>datanode</deposit.datanode.hostname>

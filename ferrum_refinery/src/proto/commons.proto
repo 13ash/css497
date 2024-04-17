@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package ferrum_refinery.proto;
+
+message HealthMetrics {
+  float cpu_load = 1;
+  uint64 memory_usage = 2;
+}

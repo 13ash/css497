@@ -7,6 +7,7 @@ pub enum FerrumRefineryError {
     DepositClientError(String),
     TransportError(String),
     JobCreationError(String),
+    TaskError(String),
 }
 
 impl From<Error> for FerrumRefineryError {

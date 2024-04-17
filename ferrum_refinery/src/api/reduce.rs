@@ -1,6 +1,7 @@
 use async_trait::async_trait;
+use bytes::Bytes;
 
 #[async_trait]
-pub trait AsyncReducer<RK1, RV1, RK2, RV2>: Send + Sync + 'static {
-    async fn reduce(&self, key: RK1, values: Vec<RV1>) -> Vec<(RK2, RV2)>;
+pub trait Reducer : Send + Sync + 'static {
+    async fn reduce(&self, key: Bytes, values: Box<dyn Iterator<Item = Bytes> + '_>) -> anyhow::Result<Bytes>;
 }

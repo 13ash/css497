@@ -1,9 +1,13 @@
 syntax = "proto3";
+import "src/proto/commons.proto";
 
 package ferrum_refinery.proto;
 
+
 service ForemanService {
   rpc SendHeartBeat(HeartbeatRequest) returns (HeartBeatResponse) {}
+  rpc CreateJob(CreateJobRequest) returns (CreateJobResponse) {}
+  rpc PollForTask(TaskRequest) returns (TaskResponse) {}
 }
 
 message HeartbeatRequest {
@@ -15,18 +19,38 @@ message HeartBeatResponse {
   bool success = 1;
 }
 
-message HealthMetrics {
-  float cpu_load = 1;
-  uint64 memory_usage = 2;
-  uint64 disk_space = 3;
+message CreateJobRequest {
+  string input_data = 1;
+  string output_data = 2;
 }
 
-message WorkRequest {
+message CreateJobResponse {
+  bool success = 1;
+}
+
+message TaskRequest {
   string worker_id = 1;
+  HealthMetrics health_metrics = 2;
+
 }
 
-message WorkResponse {
-  optional string block_id = 1;
+message TaskResponse {
+  optional MapTask map = 1;
+  optional ReduceTask reduce = 2;
 }
+
+message MapTask {
+  string job_id = 1;
+  string task_id = 2;
+  string block_id = 3;
+  string datanode_address = 4;
+  string reducer_address = 5;
+}
+
+message ReduceTask {
+  string job_id = 1;
+  string task_id = 2;
+}
+
 
 

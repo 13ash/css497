@@ -1,27 +1,9 @@
 syntax = "proto3";
+import "src/proto/commons.proto";
 
 package ferrum_refinery.proto;
 
+
 service WorkerService {
-  rpc StartMapTask(MapTaskRequest) returns (MapTaskResponse) {}
 }
 
-message MapTaskRequest {
-  string job_id = 1;
-  string block_id = 2;
-
-
-
-}
-
-message MapTaskResponse {
-  string job_id = 1;
-  string worker_id = 2;
-  bool success = 3;
-}
-
-
-enum TaskType {
-  MAP = 0;
-  REDUCE = 1;
-}

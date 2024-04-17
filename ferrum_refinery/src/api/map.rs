@@ -1,6 +1,17 @@
 use async_trait::async_trait;
+use bytes::Bytes;
 
 #[async_trait]
-pub trait AsyncMapper<K1, V1, K2, V2>: Send + Sync + 'static {
-    async fn map(&self, key: K1, value: V1) -> Vec<(K2, V2)>;
+pub trait Mapper : Send + Sync + 'static {
+    async fn map(&self, kv: KeyValue) -> MapOutput;
+
 }
+
+#[derive(Debug, Clone)]
+pub struct KeyValue {
+    pub key: Bytes,
+    pub value: Bytes,
+}
+
+
+pub type MapOutput = Vec<(Bytes, Bytes)>;
