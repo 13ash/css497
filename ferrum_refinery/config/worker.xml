@@ -2,7 +2,7 @@
 <workerConfig>
     <hostname>worker</hostname>
     <port>40001</port>
-    <data.dir>refinery/worker/</data.dir>
+    <data.dir>refinery/worker/data</data.dir>
     <foreman.hostname>foreman</foreman.hostname>
     <foreman.port>40000</foreman.port>
     <namenode.hostname>namenode</namenode.hostname>

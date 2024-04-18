@@ -1,18 +1,18 @@
 use crate::config::refinery_config::RefineryConfig;
 use crate::core::worker::Profession;
 use crate::framework::errors::FerrumRefineryError;
+use std::cmp::PartialEq;
 
 use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServiceClient;
 
 use crate::proto::foreman_service_server::ForemanService;
-use crate::proto::{HeartBeatResponse, HeartbeatRequest, CreateJobRequest, CreateJobResponse, TaskRequest, TaskResponse, MapTask, ReduceTask};
+use crate::proto::{CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
-use crate::core::foreman::TaskType::Map;
 
 /// In memory representation of a worker node
 struct Worker {
@@ -20,6 +20,12 @@ struct Worker {
     pub hostname: String,
     pub port: u16,
     pub profession: Profession,
+    pub status: WorkerStatus,
+}
+
+enum WorkerStatus {
+    Busy,
+    Idle,
 }
 
 struct WorkTask {
@@ -28,11 +34,10 @@ struct WorkTask {
     pub task_type: TaskType,
     pub block_id: Option<Uuid>,
     pub datanode_address: Option<String>,
-
 }
 enum TaskType {
     Map,
-    Reduce
+    Reduce,
 }
 
 /// Job Coordinator
@@ -68,6 +73,12 @@ impl Foreman {
     }
 }
 
+impl PartialEq for TaskType {
+    fn eq(&self, other: &Self) -> bool {
+        return self == other;
+    }
+}
+
 #[tonic::async_trait]
 impl ForemanService for Foreman {
     async fn send_heart_beat(
@@ -77,53 +88,10 @@ impl ForemanService for Foreman {
         todo!()
     }
 
-    async fn create_job(&self, request: Request<CreateJobRequest>) -> Result<Response<CreateJobResponse>, Status> {
+    async fn create_job(
+        &self,
+        _request: Request<CreateJobRequest>,
+    ) -> Result<Response<CreateJobResponse>, Status> {
         todo!()
-    }
-
-    async fn poll_for_task(&self, request: Request<TaskRequest>) -> Result<Response<TaskResponse>, Status> {
-
-        let inner_request = request.into_inner();
-
-        let mut task_queue_guard = self.task_queue.lock().await;
-
-        return match task_queue_guard.pop_front() {
-            None => {
-                let response = TaskResponse {
-                    map: None,
-                    reduce: None,
-                };
-                Ok(Response::new(response))
-            }
-            Some(task) => {
-                let task_type = task.task_type;
-
-                if task_type == Map {
-                    let map_task = MapTask {
-                        job_id: task.job_id.to_string(),
-                        task_id: task.id.to_string(),
-                        block_id: task.block_id.ok_or(Err(FerrumRefineryError::TaskError("block_id not found.".to_string()))).to_string(),
-                        datanode_address: task.datanode_address.ok_or(Err(FerrumRefineryError::TaskError("datanode address not found.".to_string()))).to_string(),
-                        reducer_address: Self::determine_reducer().await?,
-                    };
-
-                    let response = Response::new(TaskResponse {
-                        map: Some(map_task),
-                        reduce: None,
-                    });
-                    Ok(response)
-                } else {
-                    let reduce_task = ReduceTask {
-                        job_id: task.job_id.to_string(),
-                        task_id: task.id.to_string(),
-                    };
-                    let response = Response::new(TaskResponse {
-                        map: None,
-                        reduce: Some(reduce_task)
-                    });
-                    Ok(response)
-                }
-            }
-        }
     }
 }

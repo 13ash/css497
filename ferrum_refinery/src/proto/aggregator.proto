@@ -1,0 +1,19 @@
+syntax = "proto3";
+import "src/proto/commons.proto";
+
+package ferrum_refinery.proto;
+
+service AggregationService {
+  rpc SendResult(TaskResult) returns(SendResultResponse) {}
+}
+
+message TaskResult {
+  string task_id = 1;
+  string job_id = 2;
+  string worker_id = 3;
+  bytes result = 4;
+}
+
+message SendResultResponse {
+  bool success = 1;
+}

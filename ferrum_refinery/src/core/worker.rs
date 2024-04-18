@@ -1,16 +1,19 @@
+use crate::api::map::Mapper;
+use crate::api::reduce::Reducer;
 use crate::config::refinery_config::RefineryConfig;
 use crate::proto::foreman_service_client::ForemanServiceClient;
+use crate::proto::foreman_service_server::ForemanService;
 use crate::proto::worker_service_server::WorkerService;
+use crate::proto::{HeartbeatRequest, TaskRequest, TaskResponse};
 use ferrum_deposit::proto::deposit_data_node_service_client::DepositDataNodeServiceClient;
+
 use std::sync::Arc;
 use std::time::Duration;
+use sys_info::{loadavg, mem_info};
 use tokio::sync::Mutex;
-use tonic::Request;
 use tonic::transport::Channel;
+use tonic::{Request, Response, Status};
 use uuid::Uuid;
-use crate::api::map::{KeyValue, Mapper};
-use crate::api::reduce::Reducer;
-use crate::proto::TaskRequest;
 
 pub enum Profession {
     Mapper,
@@ -25,7 +28,8 @@ pub struct Worker {
     pub id: Uuid,
     pub hostname: String,
     pub port: u16,
-    pub poll_interval: Duration,
+    pub metrics_interval: Duration,
+    pub heartbeat_interval: Duration,
     pub metrics: Arc<Mutex<HealthMetrics>>,
     pub mapper: Arc<Mutex<dyn Mapper>>,
     pub reducer: Arc<Mutex<dyn Reducer>>,
@@ -34,16 +38,13 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub async fn new(
-        config: RefineryConfig,
-        mapper: impl Mapper,
-        reducer: impl Reducer,
-    ) -> Self {
+    pub async fn new(config: RefineryConfig, mapper: impl Mapper, reducer: impl Reducer) -> Self {
         Worker {
             id: Uuid::new_v4(),
             hostname: config.worker_hostname,
             port: config.worker_port,
-            poll_interval: Duration::from_millis(config.worker_poll_interval),
+            metrics_interval: Duration::from_millis(config.worker_metrics_interval),
+            heartbeat_interval: Duration::from_millis(config.worker_heartbeat_interval),
             metrics: Arc::new(Mutex::new(HealthMetrics {
                 cpu_load: 0.0,
                 memory_usage: 0,
@@ -69,67 +70,79 @@ impl Worker {
         }
     }
 
-
-    pub async fn start_polling(&self) {
-
-        let id = self.id.to_string().clone();
+    pub async fn start_heartbeat_worker(&self) {
+        let foreman_client_clone = self.foreman_client.clone();
         let metrics_clone = self.metrics.clone();
-        let foreman_client = self.foreman_client.clone();
-        let interval = self.poll_interval.clone();
-        let mapper = self.mapper.clone();
+        let id = self.id;
+        let interval = self.heartbeat_interval.clone();
 
-        // spawn a thread and pass these references into the closure
+        // spawn a thread
         tokio::spawn(async move {
-
-            // set the interval
             let mut tokio_interval = tokio::time::interval(interval);
+
             loop {
-                // tick the interval
                 tokio_interval.tick().await;
 
-                // grab the current metrics
                 let metrics_guard = metrics_clone.lock().await;
-
-                // create the request
-                let request = Request::new(TaskRequest {
-                    worker_id: id.clone(),
-                    health_metrics: Some(crate::proto::HealthMetrics {
-                        cpu_load: metrics_guard.await.cpu_load,
-                        memory_usage: metrics_guard.lock().await.memory_usage
-                    })
-                });
-
-
-                // drop the guard
+                let metrics = crate::proto::HealthMetrics {
+                    cpu_load: metrics_guard.cpu_load,
+                    memory_usage: metrics_guard.memory_usage,
+                };
                 drop(metrics_guard);
 
-                // get the response from the foreman
-                // contains either a map task or a reduce task
-                let response = foreman_client.lock().await.poll_for_task(request).await;
+                let request = Request::new(HeartbeatRequest {
+                    worker_id: id.to_string(),
+                    health_metrics: Some(metrics),
+                });
 
-                match response {
-                    Ok(task_response) => {
-                        let inner_response = task_response.into_inner();
-                         if inner_response.map.is_some() {
-                             let mapper_guard = mapper.lock().await;
-                             mapper_guard.map(KeyValue {
-                                 key: ,
-                                 value:
-                             })
-                         }
+                let mut foreman_client_guard = foreman_client_clone.lock().await;
+                match foreman_client_guard.send_heart_beat(request).await {
+                    Ok(response) => {
+                        println!("{}", response.into_inner().success);
                     }
-                    Err(err) => {}
+                    Err(err) => {
+                        println!("{}", err.message())
+                    }
                 }
+                drop(foreman_client_guard);
             }
+        });
+    }
 
+    pub async fn start_metrics_worker(&self) {
+        let metrics_clone = self.metrics.clone();
+        let interval = self.metrics_interval.clone();
 
+        // spawn a thread
 
+        tokio::spawn(async move {
+            let mut tokio_interval = tokio::time::interval(interval);
+
+            loop {
+                tokio_interval.tick().await;
+
+                // gather metrics
+                let mem_info = mem_info().unwrap();
+                let mem_usage = (mem_info.total / mem_info.avail) * 100;
+                let cpu_load_avg = loadavg().unwrap().five as f32;
+
+                // get the lock to the metrics object
+                let mut metrics_guard = metrics_clone.lock().await;
+
+                metrics_guard.memory_usage = mem_usage;
+                metrics_guard.cpu_load = cpu_load_avg;
+
+                drop(metrics_guard);
+            }
         });
     }
 }
-
 #[tonic::async_trait]
 impl WorkerService for Worker {
-
+    async fn complete_task(
+        &self,
+        _request: Request<TaskRequest>,
+    ) -> Result<Response<TaskResponse>, Status> {
+        todo!()
+    }
 }
-`

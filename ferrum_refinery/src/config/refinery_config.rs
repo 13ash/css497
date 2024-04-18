@@ -1,5 +1,5 @@
-use chrono::Duration;
 use crate::framework::errors::FerrumRefineryError;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -14,9 +14,11 @@ pub struct RefineryConfig {
     pub worker_hostname: String,
     #[serde(rename = "worker.port")]
     pub worker_port: u16,
-    #[serde(rename = "worker.poll.interval")]
-    pub worker_poll_interval: u64,
+    #[serde(rename = "worker.metrics.interval")]
+    pub worker_metrics_interval: u64,
     #[serde(rename = "deposit.namenode.hostname")]
+    pub worker_heartbeat_interval: u64,
+    #[serde(rename = "worker.heartbeat.interval")]
     pub deposit_namenode_hostname: String,
     #[serde(rename = "deposit.namenode.port")]
     pub deposit_namenode_port: u16,
@@ -24,6 +26,8 @@ pub struct RefineryConfig {
     pub deposit_datanode_hostname: String,
     #[serde(rename = "deposit.datanode.port")]
     pub deposit_datanode_port: u16,
+    #[serde(rename = "deposit.data.dir")]
+    pub deposit_data_dir: String,
 }
 
 impl RefineryConfig {

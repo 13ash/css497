@@ -5,5 +5,25 @@ package ferrum_refinery.proto;
 
 
 service WorkerService {
+  rpc CompleteTask(TaskRequest) returns (TaskResponse) {}
+}
+
+message TaskRequest {
+  string job_id = 1;
+  string task_id = 2;
+  string block_id = 3;
+  bytes key = 4;
+  bytes value = 5;
+  DataLocality locality = 6;
+  optional string datanode_address = 7;
+}
+
+message TaskResponse {
+  bool success = 1;
+}
+
+enum DataLocality {
+  Local = 0;
+  Remote = 1;
 }
 
