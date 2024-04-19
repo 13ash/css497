@@ -7,6 +7,8 @@
     <worker.port>40001</worker.port>
     <worker.heartbeat.interval>5000</worker.heartbeat.interval>
     <worker.metrics.interval>10000</worker.metrics.interval>
+    <aggregator.hostname>aggregator</aggregator.hostname>
+    <aggregator.port>60000</aggregator.port>
     <deposit.namenode.hostname>namenode</deposit.namenode.hostname>
     <deposit.namenode.port>50000</deposit.namenode.port>
     <deposit.datanode.hostname>datanode</deposit.datanode.hostname>

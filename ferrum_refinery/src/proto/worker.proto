@@ -5,20 +5,35 @@ package ferrum_refinery.proto;
 
 
 service WorkerService {
-  rpc CompleteTask(TaskRequest) returns (TaskResponse) {}
+  rpc CompleteMapTask(MapTaskRequest) returns (MapTaskResponse) {}
+  rpc CompleteReduceTask(ReduceTaskRequest) returns (ReduceTaskResponse) {}
 }
 
-message TaskRequest {
+message MapTaskRequest {
   string job_id = 1;
   string task_id = 2;
   string block_id = 3;
-  bytes key = 4;
-  bytes value = 5;
-  DataLocality locality = 6;
-  optional string datanode_address = 7;
+  uint64 seq = 4;
+  uint64 block_size = 5;
+  bytes key = 6;
+  bytes value = 7;
+  DataLocality locality = 8;
+  optional string datanode_address = 9;
 }
 
-message TaskResponse {
+message ReduceTaskRequest {
+  string job_id = 1;
+  string task_id = 2;
+  bytes key = 3;
+  bytes value = 4;
+  string aggregator_address = 5;
+}
+
+message MapTaskResponse {
+  bool success = 1;
+}
+
+message ReduceTaskResponse {
   bool success = 1;
 }
 

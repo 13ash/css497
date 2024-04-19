@@ -249,6 +249,7 @@ mod tests {
         let block = crate::proto::BlockMetadata {
             block_id: TEST_BLOCK_PUT_ID_ONE.to_string(),
             seq: 0,
+            block_size: BLOCK_SIZE as u64,
             datanodes: vec![DATANODE_HOSTNAME_PORT.to_string()],
         };
         let put_file_response = PutFileResponse {
@@ -260,6 +261,7 @@ mod tests {
         let valid_block = crate::proto::BlockMetadata {
             block_id: TEST_BLOCK_PUT_ID_ONE.to_string(),
             seq: 0,
+            block_size: BLOCK_SIZE as u64,
             datanodes: vec![format!("127.0.0.1:{}", datanode_port)],
         };
 
@@ -351,6 +353,7 @@ mod tests {
         let block = crate::proto::BlockMetadata {
             block_id: TEST_BLOCK_PUT_ID_ONE.to_string(),
             seq: 0,
+            block_size: BLOCK_SIZE as u64,
             datanodes: vec![DATANODE_HOSTNAME_PORT.to_string()],
         };
         let put_file_response = PutFileResponse {
@@ -362,6 +365,7 @@ mod tests {
         let valid_block = crate::proto::BlockMetadata {
             block_id: TEST_BLOCK_PUT_ID_TWO.to_string(),
             seq: 0,
+            block_size: BLOCK_SIZE as u64,
             datanodes: vec![format!("127.0.0.1:{}", datanode_port)],
         };
 
@@ -488,11 +492,13 @@ mod tests {
         let test_block_one = crate::proto::BlockMetadata {
             block_id: TEST_BLOCK_GET_ID_ONE.to_string(),
             seq: 0,
+            block_size: BLOCK_SIZE as u64,
             datanodes: vec![format!("{}:{}", LOCALHOST_IPV4, datanode_port)],
         };
         let test_block_two = crate::proto::BlockMetadata {
             block_id: TEST_BLOCK_GET_ID_TWO.to_string(),
             seq: 1,
+            block_size: BLOCK_SIZE as u64,
             datanodes: vec![format!("{}:{}", LOCALHOST_IPV4, datanode_port)],
         };
 
@@ -593,12 +599,14 @@ mod tests {
         let block_one_metadata = crate::proto::BlockMetadata {
             block_id: TEST_BLOCK_PUT_ID_ONE.to_string(),
             seq: 0,
+            block_size: BLOCK_SIZE as u64,
             datanodes: vec![format!("{}:{}", LOCALHOST_IPV4, datanode_port)],
         };
 
         let block_two_metadata = crate::proto::BlockMetadata {
             block_id: TEST_BLOCK_PUT_ID_TWO.to_string(),
             seq: 1,
+            block_size: BLOCK_SIZE as u64,
             datanodes: vec![format!("{}:{}", LOCALHOST_IPV4, datanode_port)],
         };
 

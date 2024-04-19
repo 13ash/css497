@@ -28,6 +28,10 @@ pub struct RefineryConfig {
     pub deposit_datanode_port: u16,
     #[serde(rename = "deposit.data.dir")]
     pub deposit_data_dir: String,
+    #[serde(rename = "aggregator.hostname")]
+    pub aggregator_hostname: String,
+    #[serde(rename = "aggregator.port")]
+    pub aggregator_port: u16,
 }
 
 impl RefineryConfig {

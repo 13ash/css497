@@ -10,6 +10,7 @@ pub enum FerrumRefineryError {
     TaskError(String),
     UuidError(String),
     RegistrationError(String),
+    HeartbeatError(String),
 }
 
 impl From<Error> for FerrumRefineryError {

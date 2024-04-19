@@ -23,6 +23,13 @@ message RegistrationResponse {
 message HeartbeatRequest {
   string worker_id = 1;
   HealthMetrics health_metrics = 2;
+  WorkerStatus status = 3;
+
+}
+
+enum WorkerStatus {
+  Idle = 0;
+  Busy = 1;
 }
 
 message HeartBeatResponse {

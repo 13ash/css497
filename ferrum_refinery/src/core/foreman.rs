@@ -4,10 +4,12 @@ use crate::framework::errors::FerrumRefineryError;
 
 use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServiceClient;
 
+use crate::core::worker::WorkerStatus;
 use crate::proto::foreman_service_server::ForemanService;
+use crate::proto::worker_service_client::WorkerServiceClient;
 use crate::proto::{
-    CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest, RegistrationRequest,
-    RegistrationResponse,
+    CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest, MapTaskRequest,
+    ReduceTaskRequest, RegistrationRequest, RegistrationResponse,
 };
 use ferrum_deposit::proto::GetRequest;
 use std::collections::{HashMap, VecDeque};
@@ -22,19 +24,21 @@ use uuid::Uuid;
 struct Worker {
     pub id: Uuid,
     pub hostname: String,
-    pub port: u32,
+    pub port: u16,
     pub status: WorkerStatus,
+    pub client: Arc<Mutex<WorkerServiceClient<Channel>>>,
 }
 
-enum WorkerStatus {
-    Busy,
-    Idle,
+enum TaskType {
+    Map,
+    Reduce,
 }
 
 struct Task {
     pub id: Uuid,
     pub job_id: Uuid,
     pub block_id: Uuid,
+    pub task_type: TaskType,
     pub datanode_address: String,
 }
 
@@ -75,11 +79,96 @@ impl Foreman {
 impl ForemanService for Foreman {
     async fn send_heart_beat(
         &self,
-        _request: Request<HeartbeatRequest>,
+        request: Request<HeartbeatRequest>,
     ) -> Result<Response<HeartBeatResponse>, Status> {
-        todo!()
+        // if the status of the worker is idle
+
+        let inner_request = request.into_inner();
+        let status = inner_request.status;
+
+        if status == WorkerStatus::Idle {
+            let mut task_queue_guard = self.task_queue.lock().await;
+            let maybe_task = task_queue_guard.pop_front();
+
+            return match maybe_task {
+                None => Ok(Response::new(HeartBeatResponse { success: true })),
+                Some(task) => {
+                    // grab the worker from the map
+                    let worker_map_guard = self.workers.lock().await;
+                    let maybe_worker = worker_map_guard.get(
+                        &Uuid::try_parse(inner_request.worker_id.as_str()).map_err(|_| {
+                            FerrumRefineryError::UuidError("Failed to parse Uuid".to_string())
+                        })?,
+                    );
+
+                    return match maybe_worker {
+                        None => Err(Status::from(FerrumRefineryError::HeartbeatError(
+                            "Worker not registered.".to_string(),
+                        ))),
+                        Some(worker) => {
+                            let mut worker_client_guard = worker.client.lock().await;
+
+                            match task.task_type {
+                                TaskType::Map => {
+                                    let map_task_request = MapTaskRequest {
+                                        job_id: "".to_string(),
+                                        task_id: "".to_string(),
+                                        block_id: "".to_string(),
+                                        seq: 0,
+                                        block_size: 0,
+                                        key: vec![],
+                                        value: vec![],
+                                        locality: 0,
+                                        datanode_address: None,
+                                    };
+
+                                    match worker_client_guard
+                                        .complete_map_task(map_task_request)
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            Ok(Response::new(HeartBeatResponse { success: true }))
+                                        }
+                                        Err(_) => {
+                                            Ok(Response::new(HeartBeatResponse { success: false }))
+                                        }
+                                    }
+                                }
+
+                                TaskType::Reduce => {
+                                    let reduce_task_request = ReduceTaskRequest {
+                                        job_id: task.job_id.to_string(),
+                                        task_id: task.id.to_string(),
+                                        key: vec![],
+                                        value: vec![],
+                                        aggregator_address: "".to_string(),
+                                    };
+
+                                    match worker_client_guard
+                                        .complete_reduce_task(reduce_task_request)
+                                        .await
+                                    {
+                                        Ok(_) => {
+                                            Ok(Response::new(HeartBeatResponse { success: true }))
+                                        }
+                                        Err(_) => {
+                                            Ok(Response::new(HeartBeatResponse { success: false }))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    };
+                }
+            };
+        }
+        // worker is busy
+        Ok(Response::new(HeartBeatResponse { success: true }))
     }
 
+    /// When a worker registers with the foreman, the foreman creates an atomically referenced
+    /// client to send tasks to the worker.
+    /// The foreman also places this worker into a HashMap for lookup.
     async fn register_with_foreman(
         &self,
         request: Request<RegistrationRequest>,
@@ -91,14 +180,19 @@ impl ForemanService for Foreman {
         let worker_uuid = Uuid::from_str(worker_id.as_str()).map_err(|_| {
             Status::from(FerrumRefineryError::UuidError("Invalid Uuid".to_string()))
         })?;
-        let worker_hostname = inner_request.worker_hostname;
+        let worker_hostname = inner_request.worker_hostname.clone();
         let worker_port = inner_request.worker_port;
 
         let worker = Worker {
             id: worker_uuid,
-            hostname: worker_hostname,
-            port: worker_port,
+            hostname: worker_hostname.clone(),
+            port: worker_port as u16,
             status: WorkerStatus::Idle,
+            client: Arc::new(Mutex::new(
+                WorkerServiceClient::connect(format!("http://{}:{}", worker_hostname, worker_port))
+                    .await
+                    .unwrap(),
+            )),
         };
 
         let worker_list_clone = self.workers.clone();
@@ -113,6 +207,10 @@ impl ForemanService for Foreman {
         };
     }
 
+    /// A foreman receives a job from the refinery framework, and shards the job into map tasks.
+    /// These map tasks correspond to a block within the deposit, the foreman places these tasks
+    /// into a task queue, and assigns work to a worker when the worker heartbeats into the foreman
+    /// (if the worker is not currently working).
     async fn create_job(
         &self,
         request: Request<CreateJobRequest>,
@@ -144,6 +242,7 @@ impl ForemanService for Foreman {
                         id: Uuid::new_v4(),
                         job_id: job_id.clone(),
                         block_id: block.block_id.parse().unwrap(),
+                        task_type: TaskType::Map,
                         datanode_address: block.datanodes[0].to_string(),
                     };
 

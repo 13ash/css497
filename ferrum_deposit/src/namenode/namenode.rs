@@ -581,6 +581,7 @@ impl DepositNameNodeService for Arc<NameNode> {
                     proto_blocks.push(ProtoBlockMetadata {
                         block_id: String::from(block.id),
                         seq: block.seq,
+                        block_size: block.size as u64,
                         datanodes: block.clone().datanodes,
                     })
                 });
@@ -623,22 +624,36 @@ impl DepositNameNodeService for Arc<NameNode> {
         let mut block_ids = Vec::new();
         let mut block_info = Vec::new();
 
-        // Create blocks and add them to BlockMap
         for seq in 0..num_blocks {
             let block_id = Uuid::new_v4();
             block_ids.push(block_id);
+            let is_last_block = seq == num_blocks - 1;
+            let size_of_block = if is_last_block {
+                file_size % BLOCK_SIZE as u64
+            } else {
+                BLOCK_SIZE as u64
+            };
+            let size_of_block = if size_of_block == 0 {
+                BLOCK_SIZE
+            } else {
+                size_of_block as usize
+            };
+
             let new_block = BlockMetadata {
                 id: block_id,
                 seq: seq as i32,
                 status: BlockStatus::Waiting,
                 datanodes: selected_datanodes.clone(),
-                size: BLOCK_SIZE,
+                size: size_of_block,
             };
+
             block_info.push(ProtoBlockMetadata {
-                block_id: String::from(block_id),
+                block_id: block_id.to_string(),
                 seq: seq as i32,
+                block_size: size_of_block as u64,
                 datanodes: selected_datanodes.clone(),
             });
+
             self.block_map.add_block(new_block).await;
         }
 
@@ -669,6 +684,7 @@ impl DepositNameNodeService for Arc<NameNode> {
                     proto_blocks.push(ProtoBlockMetadata {
                         block_id: block.id.to_string(),
                         seq: block.seq,
+                        block_size: block.size as u64,
                         datanodes: block.datanodes.clone(),
                     })
                 }
