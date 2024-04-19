@@ -6,7 +6,18 @@ package ferrum_refinery.proto;
 
 service ForemanService {
   rpc SendHeartBeat(HeartbeatRequest) returns (HeartBeatResponse) {}
+  rpc RegisterWithForeman(RegistrationRequest) returns (RegistrationResponse) {}
   rpc CreateJob(CreateJobRequest) returns (CreateJobResponse) {}
+}
+
+message RegistrationRequest {
+  string worker_id = 1;
+  string worker_hostname = 2;
+  uint32 worker_port = 3;
+}
+
+message RegistrationResponse {
+  bool success = 1;
 }
 
 message HeartbeatRequest {

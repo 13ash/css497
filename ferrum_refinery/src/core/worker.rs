@@ -4,7 +4,7 @@ use crate::config::refinery_config::RefineryConfig;
 use crate::proto::foreman_service_client::ForemanServiceClient;
 use crate::proto::foreman_service_server::ForemanService;
 use crate::proto::worker_service_server::WorkerService;
-use crate::proto::{HeartbeatRequest, TaskRequest, TaskResponse};
+use crate::proto::{HeartbeatRequest, RegistrationRequest, TaskRequest, TaskResponse};
 use ferrum_deposit::proto::deposit_data_node_service_client::DepositDataNodeServiceClient;
 
 use std::sync::Arc;
@@ -67,6 +67,30 @@ impl Worker {
                 .await
                 .unwrap(),
             )),
+        }
+    }
+    
+    pub async fn register_with_foreman(&self) {
+
+        let request = Request::new(RegistrationRequest {
+            worker_id: self.id.to_string(),
+            worker_hostname: self.hostname.clone(),
+            worker_port: self.port.clone() as u32
+        });
+
+        let foreman_client_clone = self.foreman_client.clone();
+
+        let mut foreman_client_guard = foreman_client_clone.lock().await;
+
+        let result = foreman_client_guard.register_with_foreman(request).await;
+
+        match result {
+            Ok(response) => {
+                println!("{}", response.into_inner().success);
+            }
+            Err(err) => {
+                println!("{}", err.message())
+            }
         }
     }
 

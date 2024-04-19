@@ -1,13 +1,14 @@
 use crate::config::refinery_config::RefineryConfig;
-use crate::core::worker::Profession;
+
 use crate::framework::errors::FerrumRefineryError;
 use std::cmp::PartialEq;
 
 use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServiceClient;
 
 use crate::proto::foreman_service_server::ForemanService;
-use crate::proto::{CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest};
+use crate::proto::{CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest, RegistrationRequest, RegistrationResponse};
 use std::collections::{HashMap, VecDeque};
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
@@ -18,8 +19,7 @@ use uuid::Uuid;
 struct Worker {
     pub id: Uuid,
     pub hostname: String,
-    pub port: u16,
-    pub profession: Profession,
+    pub port: u32,
     pub status: WorkerStatus,
 }
 
@@ -86,6 +86,38 @@ impl ForemanService for Foreman {
         _request: Request<HeartbeatRequest>,
     ) -> Result<Response<HeartBeatResponse>, Status> {
         todo!()
+    }
+
+    async fn register_with_foreman(&self, request: Request<RegistrationRequest>) -> Result<Response<RegistrationResponse>, Status> {
+        let inner_request = request.into_inner();
+
+        let worker_id = inner_request.worker_id;
+
+        let worker_uuid = Uuid::from_str(worker_id.as_str()).map_err(|_| Status::from(FerrumRefineryError::UuidError("Invalid Uuid".to_string())))?;
+        let worker_hostname = inner_request.worker_hostname;
+        let worker_port = inner_request.worker_port;
+
+        let worker = Worker {
+            id: worker_uuid,
+            hostname: worker_hostname,
+            port: worker_port,
+            status: WorkerStatus::Idle,
+        };
+
+        let worker_list_clone = self.workers.clone();
+
+        let mut worker_list_guard = worker_list_clone.lock().await;
+
+        return match worker_list_guard.insert(worker_uuid, worker) {
+            None => {
+                Err(Status::from(FerrumRefineryError::RegistrationError("Failed to register".to_string())))
+            }
+            Some(_) => {
+                Ok(Response::new(RegistrationResponse {
+                    success: true,
+                }))
+            }
+        }
     }
 
     async fn create_job(
