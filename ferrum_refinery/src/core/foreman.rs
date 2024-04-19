@@ -1,7 +1,6 @@
 use crate::config::refinery_config::RefineryConfig;
 
 use crate::framework::errors::FerrumRefineryError;
-use std::cmp::PartialEq;
 
 use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServiceClient;
 
@@ -10,6 +9,7 @@ use crate::proto::{
     CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest, RegistrationRequest,
     RegistrationResponse,
 };
+use ferrum_deposit::proto::GetRequest;
 use std::collections::{HashMap, VecDeque};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -31,16 +31,11 @@ enum WorkerStatus {
     Idle,
 }
 
-struct WorkTask {
+struct Task {
     pub id: Uuid,
     pub job_id: Uuid,
-    pub task_type: TaskType,
-    pub block_id: Option<Uuid>,
-    pub datanode_address: Option<String>,
-}
-enum TaskType {
-    Map,
-    Reduce,
+    pub block_id: Uuid,
+    pub datanode_address: String,
 }
 
 /// Job Coordinator
@@ -49,7 +44,7 @@ pub struct Foreman {
     pub hostname: String,
     pub port: u16,
     pub deposit_namenode_client: Arc<Mutex<DepositNameNodeServiceClient<Channel>>>,
-    pub task_queue: Mutex<VecDeque<WorkTask>>,
+    pub task_queue: Arc<Mutex<VecDeque<Task>>>,
     workers: Arc<Mutex<HashMap<Uuid, Worker>>>,
 }
 impl Foreman {
@@ -67,18 +62,12 @@ impl Foreman {
                 .unwrap(),
             )),
             workers: Arc::new(Mutex::new(HashMap::new())),
-            task_queue: Mutex::new(VecDeque::new()),
+            task_queue: Arc::new(Mutex::new(VecDeque::new())),
         })
     }
 
     pub async fn determine_reducer() -> Result<String, FerrumRefineryError> {
         Ok(String::from("test"))
-    }
-}
-
-impl PartialEq for TaskType {
-    fn eq(&self, other: &Self) -> bool {
-        return self == other;
     }
 }
 
@@ -126,8 +115,47 @@ impl ForemanService for Foreman {
 
     async fn create_job(
         &self,
-        _request: Request<CreateJobRequest>,
+        request: Request<CreateJobRequest>,
     ) -> Result<Response<CreateJobResponse>, Status> {
-        todo!()
+        let inner_request = request.into_inner();
+
+        let input_file_path = inner_request.input_data;
+        let _output_file_path = inner_request.output_data;
+
+        let namenode_client_clone = self.deposit_namenode_client.clone();
+
+        let mut namenode_client_guard = namenode_client_clone.lock().await;
+
+        let get_file_request = GetRequest {
+            path: input_file_path,
+        };
+
+        match namenode_client_guard.get(get_file_request).await {
+            Ok(response) => {
+                let job_id = Uuid::new_v4(); // create new job_id
+
+                let inner_response = response.into_inner();
+                let file_blocks = inner_response.file_blocks;
+
+                let task_queue_clone = self.task_queue.clone();
+
+                for block in file_blocks {
+                    let work_task = Task {
+                        id: Uuid::new_v4(),
+                        job_id: job_id.clone(),
+                        block_id: block.block_id.parse().unwrap(),
+                        datanode_address: block.datanodes[0].to_string(),
+                    };
+
+                    let mut task_queue_guard = task_queue_clone.lock().await;
+                    task_queue_guard.push_back(work_task);
+                }
+
+                Ok(Response::new(CreateJobResponse { success: true }))
+            }
+            Err(err) => Err(Status::from(FerrumRefineryError::JobCreationError(
+                err.to_string(),
+            ))),
+        }
     }
 }
