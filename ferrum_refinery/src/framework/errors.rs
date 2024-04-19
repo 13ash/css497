@@ -9,7 +9,7 @@ pub enum FerrumRefineryError {
     JobCreationError(String),
     TaskError(String),
     UuidError(String),
-    RegistrationError(String)
+    RegistrationError(String),
 }
 
 impl From<Error> for FerrumRefineryError {

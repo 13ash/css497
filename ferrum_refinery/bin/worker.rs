@@ -45,7 +45,10 @@ impl Reducer for ExampleReducer {
         let mut counts = HashMap::new();
 
         for (word, count_bytes) in map_output {
-            let count = String::from_utf8(count_bytes.to_vec()).unwrap().parse::<i32>().unwrap();
+            let count = String::from_utf8(count_bytes.to_vec())
+                .unwrap()
+                .parse::<i32>()
+                .unwrap();
             *counts.entry(word).or_insert(0) += count;
         }
 
@@ -75,6 +78,7 @@ async fn main() -> Result<()> {
 
     // create your worker
     let worker = Worker::new(config, mapper, reducer).await;
+    worker.start().await;
 
     let now = Local::now();
     println!("Time: {}", now.format("%Y-%m-%d %H:%M:%S"));

@@ -6,7 +6,10 @@ pub struct Aggregator {}
 
 #[tonic::async_trait]
 impl AggregationService for Aggregator {
-    async fn send_result(&self, _request: Request<TaskResult>) -> Result<Response<SendResultResponse>, Status> {
+    async fn send_result(
+        &self,
+        _request: Request<TaskResult>,
+    ) -> Result<Response<SendResultResponse>, Status> {
         todo!()
     }
 }

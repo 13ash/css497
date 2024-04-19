@@ -6,7 +6,10 @@ use std::cmp::PartialEq;
 use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServiceClient;
 
 use crate::proto::foreman_service_server::ForemanService;
-use crate::proto::{CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest, RegistrationRequest, RegistrationResponse};
+use crate::proto::{
+    CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest, RegistrationRequest,
+    RegistrationResponse,
+};
 use std::collections::{HashMap, VecDeque};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -88,12 +91,17 @@ impl ForemanService for Foreman {
         todo!()
     }
 
-    async fn register_with_foreman(&self, request: Request<RegistrationRequest>) -> Result<Response<RegistrationResponse>, Status> {
+    async fn register_with_foreman(
+        &self,
+        request: Request<RegistrationRequest>,
+    ) -> Result<Response<RegistrationResponse>, Status> {
         let inner_request = request.into_inner();
 
         let worker_id = inner_request.worker_id;
 
-        let worker_uuid = Uuid::from_str(worker_id.as_str()).map_err(|_| Status::from(FerrumRefineryError::UuidError("Invalid Uuid".to_string())))?;
+        let worker_uuid = Uuid::from_str(worker_id.as_str()).map_err(|_| {
+            Status::from(FerrumRefineryError::UuidError("Invalid Uuid".to_string()))
+        })?;
         let worker_hostname = inner_request.worker_hostname;
         let worker_port = inner_request.worker_port;
 
@@ -109,15 +117,11 @@ impl ForemanService for Foreman {
         let mut worker_list_guard = worker_list_clone.lock().await;
 
         return match worker_list_guard.insert(worker_uuid, worker) {
-            None => {
-                Err(Status::from(FerrumRefineryError::RegistrationError("Failed to register".to_string())))
-            }
-            Some(_) => {
-                Ok(Response::new(RegistrationResponse {
-                    success: true,
-                }))
-            }
-        }
+            None => Err(Status::from(FerrumRefineryError::RegistrationError(
+                "Failed to register".to_string(),
+            ))),
+            Some(_) => Ok(Response::new(RegistrationResponse { success: true })),
+        };
     }
 
     async fn create_job(

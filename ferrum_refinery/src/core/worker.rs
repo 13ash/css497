@@ -69,13 +69,18 @@ impl Worker {
             )),
         }
     }
-    
-    pub async fn register_with_foreman(&self) {
 
+    pub async fn start(&self) {
+        self.register_with_foreman().await;
+        self.start_heartbeat_worker().await;
+        self.start_metrics_worker().await;
+    }
+
+    pub async fn register_with_foreman(&self) {
         let request = Request::new(RegistrationRequest {
             worker_id: self.id.to_string(),
             worker_hostname: self.hostname.clone(),
-            worker_port: self.port.clone() as u32
+            worker_port: self.port.clone() as u32,
         });
 
         let foreman_client_clone = self.foreman_client.clone();
