@@ -7,9 +7,10 @@ use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServ
 use crate::core::worker::WorkerStatus;
 use crate::proto::foreman_service_server::ForemanService;
 use crate::proto::worker_service_client::WorkerServiceClient;
+use crate::proto::DataLocality::{Local, Remote};
 use crate::proto::{
-    CreateJobRequest, CreateJobResponse, HeartBeatResponse, HeartbeatRequest, MapTaskRequest,
-    ReduceTaskRequest, RegistrationRequest, RegistrationResponse,
+    CreateJobRequest, CreateJobResponse, DataLocality, HeartBeatResponse, HeartbeatRequest,
+    MapTaskRequest, ReduceTaskRequest, RegistrationRequest, RegistrationResponse,
 };
 use ferrum_deposit::proto::GetRequest;
 use std::collections::{HashMap, VecDeque};
@@ -38,7 +39,10 @@ struct Task {
     pub id: Uuid,
     pub job_id: Uuid,
     pub block_id: Uuid,
+    pub block_seq: u64,
+    pub block_size: u64,
     pub task_type: TaskType,
+    pub locality: DataLocality,
     pub datanode_address: String,
 }
 
@@ -62,16 +66,12 @@ impl Foreman {
                     "http://{}:{}",
                     config.deposit_namenode_hostname, config.deposit_namenode_port
                 ))
-                .await
-                .unwrap(),
+                    .await
+                    .unwrap(),
             )),
             workers: Arc::new(Mutex::new(HashMap::new())),
             task_queue: Arc::new(Mutex::new(VecDeque::new())),
         })
-    }
-
-    pub async fn determine_reducer() -> Result<String, FerrumRefineryError> {
-        Ok(String::from("test"))
     }
 }
 
@@ -110,16 +110,29 @@ impl ForemanService for Foreman {
 
                             match task.task_type {
                                 TaskType::Map => {
+                                    let worker_address =
+                                        format!("{}:{}", worker.hostname.clone(), worker.port);
+                                    let locality;
+                                    let optional_datanode_address;
+
+                                    if task.datanode_address == worker_address {
+                                        locality = Local as i32;
+                                        optional_datanode_address = None;
+                                    } else {
+                                        locality = Remote as i32;
+                                        optional_datanode_address = Some(task.datanode_address);
+                                    }
+
                                     let map_task_request = MapTaskRequest {
-                                        job_id: "".to_string(),
-                                        task_id: "".to_string(),
-                                        block_id: "".to_string(),
-                                        seq: 0,
-                                        block_size: 0,
+                                        job_id: task.job_id.to_string(),
+                                        task_id: task.id.to_string(),
+                                        block_id: task.block_id.to_string(),
+                                        seq: task.block_seq,
+                                        block_size: task.block_size,
                                         key: vec![],
                                         value: vec![],
-                                        locality: 0,
-                                        datanode_address: None,
+                                        locality,
+                                        datanode_address: optional_datanode_address,
                                     };
 
                                     match worker_client_guard
@@ -242,7 +255,10 @@ impl ForemanService for Foreman {
                         id: Uuid::new_v4(),
                         job_id: job_id.clone(),
                         block_id: block.block_id.parse().unwrap(),
+                        block_seq: block.seq as u64,
+                        block_size: block.block_size,
                         task_type: TaskType::Map,
+                        locality: Remote,
                         datanode_address: block.datanodes[0].to_string(),
                     };
 
