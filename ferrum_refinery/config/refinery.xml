@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <refineryConfig>
-    <foreman.hostname>foreman</foreman.hostname>
-    <foreman.port>40000</foreman.port>
-    <worker.data.dir>refinery/worker/data</worker.data.dir>
-    <worker.hostname>worker</worker.hostname>
-    <worker.port>40001</worker.port>
-    <worker.heartbeat.interval>5000</worker.heartbeat.interval>
-    <worker.metrics.interval>10000</worker.metrics.interval>
+    <namenode.foreman.hostname>namenode_foreman</namenode.foreman.hostname>
+    <datanode.worker.hostname>datanode_worker</datanode.worker.hostname>
     <aggregator.hostname>aggregator</aggregator.hostname>
-    <aggregator.port>60000</aggregator.port>
-    <deposit.namenode.hostname>namenode</deposit.namenode.hostname>
-    <deposit.namenode.port>50000</deposit.namenode.port>
-    <deposit.datanode.hostname>datanode</deposit.datanode.hostname>
-    <deposit.data.dir>refinery/deposit/data</deposit.data.dir>
-    <deposit.datanode.port>50001</deposit.datanode.port>
+    <aggregator.service.port>60000</aggregator.service.port>
+    <foreman.service.port>40000</foreman.service.port>
+    <worker.service.port>40001</worker.service.port>
+    <namenode.service.port>50000</namenode.service.port>
+    <datanode.service.port>50001</datanode.service.port>
+    <worker.data.dir>/refinery/worker/data</worker.data.dir>
+    <datanode.data.dir>/refinery/datanode/data</datanode.data.dir>
+    <namenode.data.dir>refinery/namenode/data</namenode.data.dir>
+    <foreman.data.dir>refinery/foreman/data</foreman.data.dir>
+    <worker.heartbeat.interval>5000</worker.heartbeat.interval>
+    <worker.metrics.interval>15000</worker.metrics.interval>
+    <datanode.heartbeat.interval>5000</datanode.heartbeat.interval>
+    <datanode.metrics.interval>15000</datanode.metrics.interval>
 </refineryConfig>

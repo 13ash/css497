@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <dataNodeConfig>
-    <data.dir>/hdfs/data</data.dir>
-    <ipc.address>0.0.0.0:50002</ipc.address>
-    <port>50002</port>
-    <namenode.address>namenode:50000</namenode.address>
+    <data.dir>/refinery/datanode/data</data.dir>
+    <ipc.address>0.0.0.0:50001</ipc.address>
+    <port>50001</port>
+    <namenode.address>namenode_foreman:50000</namenode.address>
     <heartbeat.interval>10000</heartbeat.interval>
     <block.report.interval>300000</block.report.interval>
     <metrics.interval>600000</metrics.interval>

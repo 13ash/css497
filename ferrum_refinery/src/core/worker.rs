@@ -54,7 +54,6 @@ pub struct Worker {
     pub mapper: Arc<Mutex<dyn Mapper>>,
     pub reducer: Arc<Mutex<dyn Reducer>>,
     pub deposit_data_dir: String,
-    pub deposit_client: Arc<Mutex<DepositDataNodeServiceClient<Channel>>>, // client to communicate with the hdfs deposit
     pub aggregator_client: Arc<Mutex<AggregationServiceClient<Channel>>>, // client to communicate with the result aggregator
     pub foreman_client: Arc<Mutex<ForemanServiceClient<Channel>>>, // client to communicate with foreman
 }
@@ -78,10 +77,10 @@ impl Worker {
     pub async fn new(config: RefineryConfig, mapper: impl Mapper, reducer: impl Reducer) -> Self {
         Worker {
             id: Uuid::new_v4(),
-            hostname: config.worker_hostname,
-            port: config.worker_port,
-            metrics_interval: Duration::from_millis(config.worker_metrics_interval),
-            heartbeat_interval: Duration::from_millis(config.worker_heartbeat_interval),
+            hostname: config.datanode_worker_hostname,
+            port: config.worker_service_port,
+            metrics_interval: Duration::from_millis(config.worker_metrics_interval as u64),
+            heartbeat_interval: Duration::from_millis(config.worker_heartbeat_interval as u64),
             metrics: Arc::new(Mutex::new(HealthMetrics {
                 cpu_load: 0.0,
                 memory_usage: 0,
@@ -89,19 +88,11 @@ impl Worker {
             status: Arc::new(Mutex::new(Idle)),
             mapper: Arc::new(Mutex::new(mapper)),
             reducer: Arc::new(Mutex::new(reducer)),
-            deposit_data_dir: config.deposit_data_dir,
-            deposit_client: Arc::new(Mutex::new(
-                DepositDataNodeServiceClient::connect(format!(
-                    "http://{}:{}",
-                    config.deposit_namenode_hostname, config.deposit_namenode_port
-                ))
-                .await
-                .unwrap(),
-            )),
+            deposit_data_dir: config.datanode_data_dir,
             aggregator_client: Arc::new(Mutex::new(
                 AggregationServiceClient::connect(format!(
                     "http://{}:{}",
-                    config.aggregator_hostname, config.aggregator_port
+                    config.aggregator_hostname, config.aggregator_service_port
                 ))
                 .await
                 .unwrap(),
@@ -109,7 +100,7 @@ impl Worker {
             foreman_client: Arc::new(Mutex::new(
                 ForemanServiceClient::connect(format!(
                     "http://{}:{}",
-                    config.foreman_hostname, config.foreman_port
+                    config.namenode_foreman_hostname, config.foreman_service_port
                 ))
                 .await
                 .unwrap(),
@@ -120,7 +111,6 @@ impl Worker {
     pub async fn start(&self) {
         self.register_with_foreman().await;
         self.start_heartbeat_worker().await;
-
         self.start_metrics_worker().await;
     }
 

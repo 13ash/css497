@@ -15,14 +15,14 @@ async fn main() -> Result<()> {
     let namenode_arc = Arc::new(namenode);
     let namenode_clone = namenode_arc.clone();
 
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(config.flush_interval));
-
-        loop {
-            interval.tick().await;
-            namenode_clone.flush_edit_log().await;
-        }
-    });
+    // tokio::spawn(async move {
+    //     let mut interval = tokio::time::interval(Duration::from_millis(config.flush_interval));
+    //
+    //     loop {
+    //         interval.tick().await;
+    //         namenode_clone.flush_edit_log().await;
+    //     }
+    // });
 
     let addr = config.ipc_address.parse().unwrap(); //todo: unwrap
 

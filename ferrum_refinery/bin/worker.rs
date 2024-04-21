@@ -69,8 +69,8 @@ async fn main() -> Result<()> {
     // load the refinery configuration
     let config = RefineryConfig::from_xml_file("config/refinery.xml")?;
 
-    let port = config.worker_port.clone();
-    let hostname = config.worker_hostname.clone();
+    let port = config.worker_service_port.clone();
+    let hostname = "0.0.0.0".to_string();
 
     // instantiate your mapper and reducer
     let mapper = ExampleMapper;

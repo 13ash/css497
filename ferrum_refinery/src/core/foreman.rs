@@ -59,12 +59,12 @@ impl Foreman {
     pub async fn from_config(config: RefineryConfig) -> Result<Self, FerrumRefineryError> {
         Ok(Foreman {
             id: Uuid::new_v4(),
-            hostname: config.foreman_hostname,
-            port: config.foreman_port,
+            hostname: config.namenode_foreman_hostname.clone(),
+            port: config.foreman_service_port,
             deposit_namenode_client: Arc::new(Mutex::new(
                 DepositNameNodeServiceClient::connect(format!(
                     "http://{}:{}",
-                    config.deposit_namenode_hostname, config.deposit_namenode_port
+                    config.namenode_foreman_hostname, config.namenode_service_port
                 ))
                     .await
                     .unwrap(),

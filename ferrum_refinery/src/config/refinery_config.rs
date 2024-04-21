@@ -4,34 +4,50 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct RefineryConfig {
-    #[serde(rename = "foreman.hostname")]
-    pub foreman_hostname: String,
-    #[serde(rename = "foreman.port")]
-    pub foreman_port: u16,
+    #[serde(rename = "namenode.foreman.hostname")]
+    pub namenode_foreman_hostname : String,
+
+    #[serde(rename = "datanode.worker.hostname")]
+    pub datanode_worker_hostname : String,
+
+    #[serde(rename = "aggregator.hostname")]
+    pub aggregator_hostname : String,
+
+    #[serde(rename = "aggregator.service.port")]
+    pub aggregator_service_port : u16,
+
+    #[serde(rename = "foreman.service.port")]
+    pub foreman_service_port: u16,
+
+    #[serde(rename = "worker.service.port")]
+    pub worker_service_port : u16,
+
+    #[serde(rename = "namenode.service.port")]
+    pub namenode_service_port: u16,
+
+    #[serde(rename = "datanode.service.port")]
+    pub datanode_service_port: u16,
+
     #[serde(rename = "worker.data.dir")]
     pub worker_data_dir: String,
-    #[serde(rename = "worker.hostname")]
-    pub worker_hostname: String,
-    #[serde(rename = "worker.port")]
-    pub worker_port: u16,
-    #[serde(rename = "worker.metrics.interval")]
-    pub worker_metrics_interval: u64,
-    #[serde(rename = "deposit.namenode.hostname")]
-    pub worker_heartbeat_interval: u64,
+
+    #[serde(rename = "datanode.data.dir")]
+    pub datanode_data_dir: String,
+
+    #[serde(rename = "namenode.data.dir")]
+    pub namenode_data_dir: String,
+
+    #[serde(rename = "foreman.data.dir")]
+    pub foreman_data_dir: String,
+
     #[serde(rename = "worker.heartbeat.interval")]
-    pub deposit_namenode_hostname: String,
-    #[serde(rename = "deposit.namenode.port")]
-    pub deposit_namenode_port: u16,
-    #[serde(rename = "deposit.datanode.hostname")]
-    pub deposit_datanode_hostname: String,
-    #[serde(rename = "deposit.datanode.port")]
-    pub deposit_datanode_port: u16,
-    #[serde(rename = "deposit.data.dir")]
-    pub deposit_data_dir: String,
-    #[serde(rename = "aggregator.hostname")]
-    pub aggregator_hostname: String,
-    #[serde(rename = "aggregator.port")]
-    pub aggregator_port: u16,
+    pub worker_heartbeat_interval: u16,
+
+    #[serde(rename = "worker.metrics.interval")]
+    pub worker_metrics_interval: u16,
+
+    #[serde(rename = "datanode.metrics.interval")]
+    pub datanode_metrics_interval: u16,
 }
 
 impl RefineryConfig {
