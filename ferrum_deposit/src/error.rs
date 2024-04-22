@@ -1,6 +1,7 @@
-use crate::namenode::namenode::INode;
+
 use std::sync::{PoisonError, RwLockWriteGuard};
 use tonic::Status;
+use crate::core::namenode::INode;
 
 #[derive(Debug, PartialEq)]
 pub enum FerrumDepositError {

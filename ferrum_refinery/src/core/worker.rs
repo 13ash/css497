@@ -8,7 +8,6 @@ use crate::proto::{
     HeartbeatRequest, MapTaskRequest, MapTaskResponse, ReduceTaskRequest, ReduceTaskResponse,
     RegistrationRequest,
 };
-use ferrum_deposit::proto::deposit_data_node_service_client::DepositDataNodeServiceClient;
 use std::cmp::PartialEq;
 use std::path::PathBuf;
 
@@ -24,6 +23,8 @@ use tokio::sync::Mutex;
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
+
+use tracing::{error, info};
 
 enum DataLocality {
     Local,
@@ -125,14 +126,15 @@ impl Worker {
 
         let mut foreman_client_guard = foreman_client_clone.lock().await;
 
+        info!("Sending registration request...");
         let result = foreman_client_guard.register_with_foreman(request).await;
 
         match result {
             Ok(response) => {
-                println!("{}", response.into_inner().success);
+                info!("Received registration response: {}", response.into_inner().success);
             }
             Err(err) => {
-                println!("{}", err.message())
+                error!("Registration error: {}", err.message().to_string())
             }
         }
     }
@@ -168,12 +170,14 @@ impl Worker {
                 });
 
                 let mut foreman_client_guard = foreman_client_clone.lock().await;
+
+                info!("Sending heartbeat...");
                 match foreman_client_guard.send_heart_beat(request).await {
                     Ok(response) => {
-                        println!("{}", response.into_inner().success);
+                        info!("Received heartbeat response: {}", response.into_inner().success);
                     }
                     Err(err) => {
-                        println!("{}", err.message())
+                        error!("Heartbeat error: {}", err.message().to_string())
                     }
                 }
                 drop(foreman_client_guard);
@@ -204,6 +208,7 @@ impl Worker {
                 metrics_guard.memory_usage = mem_usage;
                 metrics_guard.cpu_load = cpu_load_avg;
 
+                info!("Gathered metrics: cpu_load: {}, memory_usage: {}", metrics_guard.cpu_load, metrics_guard.memory_usage);
                 drop(metrics_guard);
             }
         });

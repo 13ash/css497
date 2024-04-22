@@ -1,10 +1,10 @@
 use chrono::Local;
+use ferrum_refinery::config::refinery_config::RefineryConfig;
+use ferrum_refinery::core::aggregator::Aggregator;
+use ferrum_refinery::framework::errors::Result;
+use ferrum_refinery::proto::aggregation_service_server::AggregationServiceServer;
 use tonic::transport::Server;
 use tracing_subscriber::fmt::format::FmtSpan;
-use ferrum_refinery::config::refinery_config::RefineryConfig;
-use ferrum_refinery::framework::errors::Result;
-use ferrum_refinery::core::aggregator::Aggregator;
-use ferrum_refinery::proto::aggregation_service_server::AggregationServiceServer;
 
 #[tokio::main]
 async fn main() -> Result<()> {

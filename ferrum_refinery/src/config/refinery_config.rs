@@ -5,22 +5,22 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize, Clone)]
 pub struct RefineryConfig {
     #[serde(rename = "namenode.foreman.hostname")]
-    pub namenode_foreman_hostname : String,
+    pub namenode_foreman_hostname: String,
 
     #[serde(rename = "datanode.worker.hostname")]
-    pub datanode_worker_hostname : String,
+    pub datanode_worker_hostname: String,
 
     #[serde(rename = "aggregator.hostname")]
-    pub aggregator_hostname : String,
+    pub aggregator_hostname: String,
 
     #[serde(rename = "aggregator.service.port")]
-    pub aggregator_service_port : u16,
+    pub aggregator_service_port: u16,
 
     #[serde(rename = "foreman.service.port")]
     pub foreman_service_port: u16,
 
     #[serde(rename = "worker.service.port")]
-    pub worker_service_port : u16,
+    pub worker_service_port: u16,
 
     #[serde(rename = "namenode.service.port")]
     pub namenode_service_port: u16,

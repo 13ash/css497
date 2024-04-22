@@ -1,6 +1,6 @@
 
 syntax = "proto3";
-import "common.proto";
+import "src/proto/common.proto";
 
 package ferrum_deposit.proto;
 

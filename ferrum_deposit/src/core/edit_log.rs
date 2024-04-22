@@ -100,7 +100,7 @@ impl EditLogManager for EditLog {
 
 #[cfg(test)]
 mod tests {
-    use crate::namenode::edit_log::{EditLogManager, LogEntry, MockEditLog, Operation};
+    use crate::core::edit_log::{EditLogManager, LogEntry, MockEditLog, Operation};
     use std::path::PathBuf;
 
     #[tokio::test]

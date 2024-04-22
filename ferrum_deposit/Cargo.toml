@@ -6,15 +6,15 @@ build = "build.rs"
 
 [[bin]]
 name = "datanode"
-path = "src/bin/datanode.rs"
+path = "bin/datanode.rs"
 
 [[bin]]
 name = "namenode"
-path = "src/bin/namenode.rs"
+path = "bin/namenode.rs"
 
 [[bin]]
 name = "deposit"
-path = "src/bin/deposit.rs"
+path = "bin/deposit.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

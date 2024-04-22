@@ -35,7 +35,7 @@ enum TaskType {
     Reduce,
 }
 
-struct Task {
+pub struct Task {
     pub id: Uuid,
     pub job_id: Uuid,
     pub block_id: Uuid,
@@ -66,8 +66,8 @@ impl Foreman {
                     "http://{}:{}",
                     config.namenode_foreman_hostname, config.namenode_service_port
                 ))
-                    .await
-                    .unwrap(),
+                .await
+                .unwrap(),
             )),
             workers: Arc::new(Mutex::new(HashMap::new())),
             task_queue: Arc::new(Mutex::new(VecDeque::new())),

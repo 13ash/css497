@@ -4,10 +4,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(true)
         .compile(
             &[
-                "proto/deposit_datanode.proto",
-                "proto/deposit_namenode.proto",
-                "proto/datanode_namenode.proto",
-                "proto/common.proto",
+                "src/proto/deposit_datanode.proto",
+                "src/proto/deposit_namenode.proto",
+                "src/proto/datanode_namenode.proto",
+                "src/proto/common.proto",
             ],
             &["proto"],
         )?;

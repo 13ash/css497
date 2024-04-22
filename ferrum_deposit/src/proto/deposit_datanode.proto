@@ -3,7 +3,7 @@ syntax = "proto3";
 
 package ferrum_deposit.proto;
 
-import "common.proto";
+import "src/proto/common.proto";
 
 service DepositDataNodeService {
   rpc PutBlockStreamed( stream BlockChunk) returns (TransferStatus) {}
