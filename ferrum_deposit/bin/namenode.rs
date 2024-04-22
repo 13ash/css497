@@ -5,12 +5,21 @@ use ferrum_deposit::proto::data_node_name_node_service_server::DataNodeNameNodeS
 use ferrum_deposit::proto::deposit_name_node_service_server::DepositNameNodeServiceServer;
 use std::sync::Arc;
 use tonic::transport::Server;
+use tracing_subscriber::fmt::format::FmtSpan;
 use ferrum_deposit::core::namenode::NameNode;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let config = NameNodeConfig::from_xml_file("config/namenode.xml")?;
+
+    // add logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_span_events(FmtSpan::CLOSE)
+        .init();
+
     let namenode = NameNode::from_config(config.clone()).await?;
+
     let namenode_arc = Arc::new(namenode);
     let _namenode_clone = namenode_arc.clone();
 

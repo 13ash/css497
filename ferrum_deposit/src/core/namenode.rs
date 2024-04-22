@@ -22,6 +22,7 @@ use crate::proto::{
 use crate::proto::deposit_name_node_service_server::DepositNameNodeService;
 #[cfg(test)]
 use mockall::automock;
+use tracing::info;
 use crate::core::block_map::{BlockMap, BlockMapManager};
 use crate::core::edit_log::{EditLog, EditLogManager, Operation};
 
@@ -480,7 +481,7 @@ impl DataNodeNameNodeService for Arc<NameNode> {
         request: Request<HeartBeatRequest>,
     ) -> Result<Response<HeartBeatResponse>, Status> {
         let inner_request = request.into_inner();
-        eprintln!(" Received Heartbeat: {:?}", inner_request.clone());
+        info!(" Received Heartbeat: {:?}", inner_request.clone());
         let datanode_id_str = inner_request.datanode_id;
         let datanode_id = Uuid::from_str(&datanode_id_str).map_err(|_| {
             Status::from(FerrumDepositError::HeartBeatFailed(
@@ -502,7 +503,7 @@ impl DataNodeNameNodeService for Arc<NameNode> {
         &self,
         request: Request<RegistrationRequest>,
     ) -> Result<Response<RegistrationResponse>, Status> {
-        println!("Received registration {:?}", request);
+        info!("Received registration {:?}", request);
         let inner_request = request.into_inner();
 
         let unwrapped_request_id = Uuid::from_str(&inner_request.datanode_id)
