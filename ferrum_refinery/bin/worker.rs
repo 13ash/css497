@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use tonic::transport::Server;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 use ferrum_refinery::config::refinery_config::RefineryConfig;
 use ferrum_refinery::core::worker::Worker;
@@ -69,8 +70,15 @@ async fn main() -> Result<()> {
     // load the refinery configuration
     let config = RefineryConfig::from_xml_file("config/refinery.xml")?;
 
+    // add logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_span_events(FmtSpan::CLOSE)
+        .init();
+
     let port = config.worker_service_port.clone();
     let hostname = "0.0.0.0".to_string();
+    let addr = format!("{}:{}", hostname, port);
 
     // instantiate your mapper and reducer
     let mapper = ExampleMapper;
@@ -86,11 +94,7 @@ async fn main() -> Result<()> {
     // listen for tasks from the foreman
     Server::builder()
         .add_service(WorkerServiceServer::new(worker))
-        .serve(SocketAddr::new(
-            IpAddr::from_str(hostname.as_str()).unwrap(),
-            port,
-        ))
+        .serve(addr.parse().unwrap())
         .await?;
-
     Ok(())
 }

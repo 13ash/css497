@@ -1,9 +1,17 @@
 version: '3.8'
 
 services:
+  aggregator:
+    image: aggregator
+    hostname: aggregator
+    ports:
+      - "60000:60000"
+    volumes:
+      - ./ferrum_refinery/config/refinery.xml:/config/refinery.xml
+      - aggregator-data:/refinery/aggregator/data
   namenode_foreman:
     image: namenode_foreman
-    hostname: namenode_foreman  # Set the hostname for the NameNode
+    hostname: namenode_foreman
     ports:
       - "50000:50000"
       - "40000:40000"
@@ -70,3 +78,4 @@ volumes:
   worker2-data:
   worker3-data:
   foreman-data:
+  aggregator-data:

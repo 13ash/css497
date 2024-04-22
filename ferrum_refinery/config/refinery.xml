@@ -12,6 +12,7 @@
     <datanode.data.dir>/refinery/datanode/data</datanode.data.dir>
     <namenode.data.dir>refinery/namenode/data</namenode.data.dir>
     <foreman.data.dir>refinery/foreman/data</foreman.data.dir>
+    <aggregator.data.dir>refinery/aggregator/data</aggregator.data.dir>
     <worker.heartbeat.interval>5000</worker.heartbeat.interval>
     <worker.metrics.interval>15000</worker.metrics.interval>
     <datanode.heartbeat.interval>5000</datanode.heartbeat.interval>

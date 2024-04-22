@@ -40,6 +40,9 @@ pub struct RefineryConfig {
     #[serde(rename = "foreman.data.dir")]
     pub foreman_data_dir: String,
 
+    #[serde(rename = "aggregator.data.dir")]
+    pub aggregator_data_dir: String,
+
     #[serde(rename = "worker.heartbeat.interval")]
     pub worker_heartbeat_interval: u16,
 
