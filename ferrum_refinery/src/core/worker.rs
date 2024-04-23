@@ -131,7 +131,10 @@ impl Worker {
 
         match result {
             Ok(response) => {
-                info!("Received registration response: {}", response.into_inner().success);
+                info!(
+                    "Received registration response: {}",
+                    response.into_inner().success
+                );
             }
             Err(err) => {
                 error!("Registration error: {}", err.message().to_string())
@@ -174,7 +177,10 @@ impl Worker {
                 info!("Sending heartbeat...");
                 match foreman_client_guard.send_heart_beat(request).await {
                     Ok(response) => {
-                        info!("Received heartbeat response: {}", response.into_inner().success);
+                        info!(
+                            "Received heartbeat response: {}",
+                            response.into_inner().success
+                        );
                     }
                     Err(err) => {
                         error!("Heartbeat error: {}", err.message().to_string())
@@ -208,7 +214,10 @@ impl Worker {
                 metrics_guard.memory_usage = mem_usage;
                 metrics_guard.cpu_load = cpu_load_avg;
 
-                info!("Gathered metrics: cpu_load: {}, memory_usage: {}", metrics_guard.cpu_load, metrics_guard.memory_usage);
+                info!(
+                    "Gathered metrics: cpu_load: {}, memory_usage: {}",
+                    metrics_guard.cpu_load, metrics_guard.memory_usage
+                );
                 drop(metrics_guard);
             }
         });

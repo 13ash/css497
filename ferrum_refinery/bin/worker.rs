@@ -5,7 +5,6 @@ use ferrum_refinery::api::map::{KeyValue, MapOutput, Mapper};
 use ferrum_refinery::api::reduce::Reducer;
 use std::collections::HashMap;
 
-
 use tonic::transport::Server;
 use tracing_subscriber::fmt::format::FmtSpan;
 

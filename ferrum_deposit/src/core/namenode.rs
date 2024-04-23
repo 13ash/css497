@@ -19,12 +19,12 @@ use crate::proto::{
     WriteBlockUpdateRequest, WriteBlockUpdateResponse,
 };
 
+use crate::core::block_map::{BlockMap, BlockMapManager};
+use crate::core::edit_log::{EditLog, EditLogManager, Operation};
 use crate::proto::deposit_name_node_service_server::DepositNameNodeService;
 #[cfg(test)]
 use mockall::automock;
 use tracing::info;
-use crate::core::block_map::{BlockMap, BlockMapManager};
-use crate::core::edit_log::{EditLog, EditLogManager, Operation};
 
 #[derive(Debug, Clone)]
 pub enum INode {
@@ -742,10 +742,12 @@ impl DepositNameNodeService for Arc<NameNode> {
 
 #[cfg(test)]
 mod tests {
+    use crate::core::namenode::{
+        DatanodeManager, INode, MockDatanodeManager, MockNamespaceManager, NamespaceManager,
+    };
     use crate::error::FerrumDepositError;
     use std::collections::HashMap;
     use std::path::PathBuf;
-    use crate::core::namenode::{DatanodeManager, INode, MockDatanodeManager, MockNamespaceManager, NamespaceManager};
 
     #[tokio::test]
     async fn add_inode_to_namespace_expects_invalid_path_empty() {

@@ -1,12 +1,12 @@
 use chrono::Local;
 use ferrum_deposit::config::namenode_config::NameNodeConfig;
+use ferrum_deposit::core::namenode::NameNode;
 use ferrum_deposit::error::Result;
 use ferrum_deposit::proto::data_node_name_node_service_server::DataNodeNameNodeServiceServer;
 use ferrum_deposit::proto::deposit_name_node_service_server::DepositNameNodeServiceServer;
 use std::sync::Arc;
 use tonic::transport::Server;
 use tracing_subscriber::fmt::format::FmtSpan;
-use ferrum_deposit::core::namenode::NameNode;
 
 #[tokio::main]
 async fn main() -> Result<()> {
