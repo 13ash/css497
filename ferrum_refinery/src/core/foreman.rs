@@ -10,7 +10,7 @@ use crate::proto::worker_service_client::WorkerServiceClient;
 use crate::proto::DataLocality::{Local, Remote};
 use crate::proto::{
     CreateJobRequest, CreateJobResponse, DataLocality, HeartBeatResponse, HeartbeatRequest,
-    MapTaskRequest, ReduceTaskRequest, RegistrationRequest, RegistrationResponse,
+    MapTaskRequest, RegistrationRequest, RegistrationResponse,
 };
 use ferrum_deposit::proto::GetRequest;
 use std::collections::{HashMap, VecDeque};
@@ -19,9 +19,11 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
+use tracing::{error, info};
 use uuid::Uuid;
 
 /// In memory representation of a worker node
+#[derive(Debug)]
 struct Worker {
     pub id: Uuid,
     pub hostname: String,
@@ -30,11 +32,13 @@ struct Worker {
     pub client: Arc<Mutex<WorkerServiceClient<Channel>>>,
 }
 
+#[derive(Debug)]
 enum TaskType {
     Map,
     Reduce,
 }
 
+#[derive(Debug)]
 pub struct Task {
     pub id: Uuid,
     pub job_id: Uuid,
@@ -47,6 +51,7 @@ pub struct Task {
 }
 
 /// Job Coordinator
+#[derive(Debug)]
 pub struct Foreman {
     pub id: Uuid,
     pub hostname: String,
@@ -85,6 +90,7 @@ impl ForemanService for Foreman {
 
         let inner_request = request.into_inner();
         let status = inner_request.status;
+        info!("Received Heartbeat from worker: {:?}", inner_request);
 
         if status == WorkerStatus::Idle {
             let mut task_queue_guard = self.task_queue.lock().await;
@@ -102,72 +108,55 @@ impl ForemanService for Foreman {
                     );
 
                     return match maybe_worker {
-                        None => Err(Status::from(FerrumRefineryError::HeartbeatError(
-                            "Worker not registered.".to_string(),
-                        ))),
+                        None => {
+                            error!("Worker not registered with foreman.");
+                            Err(Status::from(FerrumRefineryError::HeartbeatError(
+                                "Worker not registered.".to_string(),
+                            )))
+                        }
                         Some(worker) => {
+                            info!("Sending task to worker {:?}:{:?}", worker, task);
                             let mut worker_client_guard = worker.client.lock().await;
 
-                            match task.task_type {
-                                TaskType::Map => {
-                                    let worker_address =
-                                        format!("{}:{}", worker.hostname.clone(), worker.port);
-                                    let locality;
-                                    let optional_datanode_address;
+                            let worker_address =
+                                format!("{}:{}", worker.hostname.clone(), worker.port);
+                            let locality;
+                            let optional_datanode_address;
 
-                                    if task.datanode_address == worker_address {
-                                        locality = Local as i32;
-                                        optional_datanode_address = None;
-                                    } else {
-                                        locality = Remote as i32;
-                                        optional_datanode_address = Some(task.datanode_address);
-                                    }
+                            if task.datanode_address == worker_address {
+                                locality = Local as i32;
+                                optional_datanode_address = None;
+                            } else {
+                                locality = Remote as i32;
+                                optional_datanode_address = Some(task.datanode_address);
+                            }
 
-                                    let map_task_request = MapTaskRequest {
-                                        job_id: task.job_id.to_string(),
-                                        task_id: task.id.to_string(),
-                                        block_id: task.block_id.to_string(),
-                                        seq: task.block_seq,
-                                        block_size: task.block_size,
-                                        key: vec![],
-                                        value: vec![],
-                                        locality,
-                                        datanode_address: optional_datanode_address,
-                                    };
+                            let map_task_request = MapTaskRequest {
+                                job_id: task.job_id.to_string(),
+                                task_id: task.id.to_string(),
+                                block_id: task.block_id.to_string(),
+                                seq: task.block_seq,
+                                block_size: task.block_size,
+                                key: vec![],
+                                value: vec![],
+                                locality,
+                                datanode_address: optional_datanode_address,
+                            };
 
-                                    match worker_client_guard
-                                        .complete_map_task(map_task_request)
-                                        .await
-                                    {
-                                        Ok(_) => {
-                                            Ok(Response::new(HeartBeatResponse { success: true }))
-                                        }
-                                        Err(_) => {
-                                            Ok(Response::new(HeartBeatResponse { success: false }))
-                                        }
-                                    }
+                            match worker_client_guard
+                                .complete_map_task(map_task_request)
+                                .await
+                            {
+                                Ok(response) => {
+                                    info!(
+                                        "Received Successful MapTask response: {:?}",
+                                        response.into_inner()
+                                    );
+                                    Ok(Response::new(HeartBeatResponse { success: true }))
                                 }
-
-                                TaskType::Reduce => {
-                                    let reduce_task_request = ReduceTaskRequest {
-                                        job_id: task.job_id.to_string(),
-                                        task_id: task.id.to_string(),
-                                        key: vec![],
-                                        value: vec![],
-                                        aggregator_address: "".to_string(),
-                                    };
-
-                                    match worker_client_guard
-                                        .complete_reduce_task(reduce_task_request)
-                                        .await
-                                    {
-                                        Ok(_) => {
-                                            Ok(Response::new(HeartBeatResponse { success: true }))
-                                        }
-                                        Err(_) => {
-                                            Ok(Response::new(HeartBeatResponse { success: false }))
-                                        }
-                                    }
+                                Err(err) => {
+                                    info!("Received Failed MapTask response: {:?}", err.message());
+                                    Ok(Response::new(HeartBeatResponse { success: false }))
                                 }
                             }
                         }
@@ -266,11 +255,17 @@ impl ForemanService for Foreman {
                     task_queue_guard.push_back(work_task);
                 }
 
-                Ok(Response::new(CreateJobResponse { success: true }))
+                Ok(Response::new(CreateJobResponse {
+                    success: true,
+                    job_id: Some(job_id.to_string()),
+                }))
             }
-            Err(err) => Err(Status::from(FerrumRefineryError::JobCreationError(
-                err.to_string(),
-            ))),
+            Err(err) => {
+                error!("Failed to create job: {}", err.to_string());
+                Err(Status::from(FerrumRefineryError::JobCreationError(
+                    err.to_string(),
+                )))
+            }
         }
     }
 }

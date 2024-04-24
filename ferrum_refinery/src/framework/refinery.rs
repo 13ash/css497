@@ -4,6 +4,7 @@ use crate::proto::CreateJobRequest;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
+use tracing::info;
 
 pub struct Refinery {
     pub input_location: String,
@@ -36,7 +37,13 @@ impl Refinery {
             .create_job(create_job_request)
             .await;
         match response {
-            Ok(_success) => Ok(()),
+            Ok(response) => {
+                info!(
+                    "job: {} successfully created.",
+                    response.into_inner().job_id.unwrap()
+                );
+                Ok(())
+            }
             Err(error) => Err(FerrumRefineryError::JobCreationError(
                 error.message().to_string(),
             )),

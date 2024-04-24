@@ -1,5 +1,5 @@
 use chrono::Local;
-use ferrum_deposit::config::namenode_config::NameNodeConfig;
+use ferrum_deposit::config::deposit_config::DepositConfig;
 use ferrum_deposit::core::namenode::NameNode;
 use ferrum_deposit::error::Result;
 use ferrum_deposit::proto::data_node_name_node_service_server::DataNodeNameNodeServiceServer;
@@ -10,7 +10,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = NameNodeConfig::from_xml_file("config/namenode.xml")?;
+    let config = DepositConfig::from_xml_file("/config/deposit.xml")?;
 
     // add logging
     tracing_subscriber::fmt()
@@ -32,7 +32,9 @@ async fn main() -> Result<()> {
     //     }
     // });
 
-    let addr = config.ipc_address.parse().unwrap(); //todo: unwrap
+    let addr = format!("0.0.0.0:{}", config.namenode_service_port)
+        .parse()
+        .unwrap(); //todo: unwrap
 
     let now = Local::now();
     println!("Time: {}", now.format("%Y-%m-%d %H:%M:%S"));

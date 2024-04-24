@@ -1,5 +1,5 @@
 use crate::block::BLOCK_CHUNK_SIZE;
-use crate::config::datanode_config::DataNodeConfig;
+use crate::config::deposit_config::DepositConfig;
 use crate::error::FerrumDepositError;
 use crate::proto::data_node_name_node_service_client::DataNodeNameNodeServiceClient;
 use crate::proto::deposit_data_node_service_server::DepositDataNodeService;
@@ -76,24 +76,28 @@ pub struct DataNode {
 }
 
 impl DataNode {
-    pub async fn from_config(config: DataNodeConfig) -> Self {
+    pub async fn from_config(config: DepositConfig) -> Self {
         DataNode {
             id: Uuid::new_v4(),
-            data_dir: config.data_dir,
-            hostname_port: format!("{}:{}", System::host_name().unwrap(), config.port),
+            data_dir: config.datanode_data_dir,
+            hostname_port: format!(
+                "{}:{}",
+                System::host_name().unwrap(),
+                config.datanode_service_port
+            ),
             datanode_namenode_service_client: Arc::new(Mutex::new(
                 DataNodeNameNodeServiceClient::connect(format!(
-                    "http://{}",
-                    config.namenode_address
+                    "http://{}:{}",
+                    config.namenode_hostname, config.namenode_service_port,
                 ))
                 .await
                 .unwrap(),
             )),
             blocks: Arc::new(RwLock::new(HashMap::new())),
-            heartbeat_interval: Duration::from_millis(config.heartbeat_interval),
+            heartbeat_interval: Duration::from_millis(config.datanode_heartbeat_interval),
             metrics: Arc::new(Mutex::new(HealthMetrics::init())),
-            block_report_interval: Duration::from_millis(config.block_report_interval),
-            metrics_interval: Duration::from_millis(config.metrics_interval),
+            block_report_interval: Duration::from_millis(config.datanode_block_report_interval),
+            metrics_interval: Duration::from_millis(config.datanode_metrics_interval),
         }
     }
     pub async fn start(&mut self) -> Result<(), FerrumDepositError> {

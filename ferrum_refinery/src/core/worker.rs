@@ -5,11 +5,9 @@ use crate::proto::foreman_service_client::ForemanServiceClient;
 use crate::proto::foreman_service_server::ForemanService;
 use crate::proto::worker_service_server::WorkerService;
 use crate::proto::{
-    HeartbeatRequest, MapTaskRequest, MapTaskResponse, ReduceTaskRequest, ReduceTaskResponse,
-    RegistrationRequest,
+    HeartbeatRequest, MapTaskRequest, MapTaskResponse, RegistrationRequest, TaskResult,
 };
 use std::cmp::PartialEq;
-use std::path::PathBuf;
 
 use crate::core::worker::WorkerStatus::{Busy, Idle};
 use crate::framework::errors::FerrumRefineryError;
@@ -25,6 +23,10 @@ use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
 use tracing::{error, info};
+
+use crate::core::worker::DataLocality::Remote;
+use ferrum_deposit::proto::deposit_data_node_service_client::DepositDataNodeServiceClient;
+use ferrum_deposit::proto::GetBlockRequest;
 
 enum DataLocality {
     Local,
@@ -44,6 +46,7 @@ struct HealthMetrics {
     pub cpu_load: f32,
     pub memory_usage: u64,
 }
+
 pub struct Worker {
     pub id: Uuid,
     pub hostname: String,
@@ -55,11 +58,12 @@ pub struct Worker {
     pub mapper: Arc<Mutex<dyn Mapper>>,
     pub reducer: Arc<Mutex<dyn Reducer>>,
     pub deposit_data_dir: String,
-    pub aggregator_client: Arc<Mutex<AggregationServiceClient<Channel>>>, // client to communicate with the result aggregator
+    pub aggregator_client: Arc<Mutex<AggregationServiceClient<Channel>>>,
+    // client to communicate with the result aggregator
     pub foreman_client: Arc<Mutex<ForemanServiceClient<Channel>>>, // client to communicate with foreman
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum WorkerStatus {
     Idle = 0,
     Busy = 1,
@@ -241,65 +245,112 @@ impl WorkerService for Worker {
         drop(status_guard);
 
         let inner_request = request.into_inner();
+        info!("Received task from foreman: {:?}", inner_request);
         let block_size = inner_request.block_size as usize;
 
         // see if we need to grab the input data, or if the data is local to this node
         let locality = inner_request.locality;
 
+        // let's allocate some memory to hold the block
+        let mut buffer = vec![0u8; block_size];
+
+        // if the block is located on this datanode
+        // load the data from /deposit/data/{block_id}_{seq_num}.dat into memory
         if locality == DataLocality::Local {
-            // load the data from /deposit/data/{block_id}_{seq_num}.dat into memory
-
-            // let's allocate some memory to hold the block
-
-            let mut buffer = vec![0u8; block_size];
-
             // next, we'll attempt to read the file into the buffer
             let file_path_string = format!(
                 "{}/{}_{}.dat",
                 self.deposit_data_dir, inner_request.block_id, inner_request.seq
             );
-            let file_path = PathBuf::from(file_path_string);
 
-            match tokio::fs::File::open(file_path).await {
+            match tokio::fs::File::open(file_path_string).await {
                 Ok(mut file) => {
                     file.read_exact(&mut *buffer).await?;
-
-                    // now we'll send the map task to the tokio scheduler
-
-                    let kv = KeyValue {
-                        key: Bytes::from(inner_request.key),
-                        value: Bytes::from(buffer),
-                    };
-
-                    let mapper_clone = self.mapper.clone();
-
-                    // acquire the mapper lock
-                    let mapper_guard = mapper_clone.lock().await;
-
-                    // do the map task
-                    let _result = mapper_guard.map(kv).await;
-
-                    todo!()
                 }
+
                 Err(err) => {
-                    // set the worker to idle
-                    let mut status_guard = self.status.lock().await;
-                    *status_guard = Idle;
-                    drop(status_guard);
-                    Err(Status::from(FerrumRefineryError::TaskError(
+                    return Err(Status::from(FerrumRefineryError::TaskError(
                         err.to_string(),
-                    )))
+                    )));
                 }
             }
-        } else {
-            todo!()
         }
-    }
 
-    async fn complete_reduce_task(
-        &self,
-        _request: Request<ReduceTaskRequest>,
-    ) -> Result<Response<ReduceTaskResponse>, Status> {
-        todo!()
+        // if the block is located on another datanode
+        // connect to the other datanode and stream the block into memory
+
+        if locality == Remote {
+            let deposit_datanode_addr =
+                format!("http://{}", inner_request.datanode_address.unwrap());
+            let mut deposit_client = DepositDataNodeServiceClient::connect(deposit_datanode_addr)
+                .await
+                .unwrap();
+            let get_block_request = GetBlockRequest {
+                block_id: inner_request.block_id,
+            };
+            let mut stream = deposit_client
+                .get_block_streamed(Request::new(get_block_request))
+                .await
+                .map_err(|e| FerrumRefineryError::TaskError(e.message().to_string()))?
+                .into_inner();
+
+            let mut offset = 0;
+            while let Some(block_chunk) = stream
+                .message()
+                .await
+                .map_err(|e| FerrumRefineryError::TaskError(e.to_string()))?
+            {
+                let chunk_data = block_chunk.chunked_data.as_slice();
+                let chunk_data_size = chunk_data.len();
+                if offset + chunk_data_size > buffer.len() {
+                    return Err(Status::from(FerrumRefineryError::BufferOverflow));
+                }
+                buffer[offset..offset + chunk_data_size].copy_from_slice(chunk_data);
+                offset += chunk_data_size;
+            }
+        }
+
+        let kv = KeyValue {
+            key: Bytes::from(inner_request.key),
+            value: Bytes::from(buffer),
+        };
+
+        let mapper_clone = self.mapper.clone();
+
+        // acquire the mapper lock
+        let mapper_guard = mapper_clone.lock().await;
+
+        // do the map task
+        let map_result = mapper_guard.map(kv).await;
+
+        info!("Finished map task...reducing");
+
+        let reducer_clone = self.reducer.clone();
+
+        let reducer_guard = reducer_clone.lock().await;
+
+        let reduce_result = reducer_guard.reduce(map_result).await;
+
+        return match reduce_result {
+            Ok(result) => {
+                info!("Finished reduce task...sending to aggregator");
+                // send the results to the aggregator
+                let aggregator_request = Request::new(TaskResult {
+                    task_id: inner_request.task_id,
+                    job_id: inner_request.job_id,
+                    worker_id: self.id.to_string(),
+                    result: result.to_vec(),
+                });
+                let aggregator_clone = self.aggregator_client.clone();
+                let mut aggregator_guard = aggregator_clone.lock().await;
+                match aggregator_guard.send_result(aggregator_request).await {
+                    Ok(_) => Ok(Response::new(MapTaskResponse { success: true })),
+                    Err(err) => Err(err),
+                }
+            }
+            Err(err) => Err(Status::from(FerrumRefineryError::TaskError(
+                err.to_string(),
+            ))),
+        };
     }
 }

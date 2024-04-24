@@ -1,11 +1,12 @@
 use clap::{Parser, Subcommand};
 use ferrum_refinery::config::refinery_config::RefineryConfig;
-use ferrum_refinery::framework::errors::FerrumRefineryError;
+
 use ferrum_refinery::framework::refinery::Refinery;
 use ferrum_refinery::proto::foreman_service_client::ForemanServiceClient;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{error, info};
+use tracing_subscriber::fmt::format::FmtSpan;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -19,6 +20,7 @@ enum Commands {
     Submit {
         #[arg(short, long)]
         input: String,
+        #[arg(short, long)]
         output: String,
     },
 }
@@ -27,9 +29,15 @@ enum Commands {
 async fn main() -> ferrum_deposit::error::Result<()> {
     let args = Cli::parse();
 
+    // add logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_span_events(FmtSpan::CLOSE)
+        .init();
+
     match &args.command {
         Commands::Submit { input, output } => {
-            let refinery_config = RefineryConfig::from_xml_file("../config/refinery.xml").unwrap();
+            let refinery_config = RefineryConfig::from_xml_file("/config/refinery.xml").unwrap();
 
             // connect to the foreman
 
@@ -46,9 +54,11 @@ async fn main() -> ferrum_deposit::error::Result<()> {
             let refinery = Refinery::new(input, output, wrapped_client);
 
             match refinery.refine().await {
-                Ok(_) => {}
+                Ok(_) => {
+                    info!("Job submitted to refinery: working...");
+                }
                 Err(err) => {
-                    info!("Refinery Error: {:?}", err);
+                    error!("Refinery Error: {:?}", err);
                 }
             }
 

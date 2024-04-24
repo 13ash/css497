@@ -1,5 +1,5 @@
 use chrono::Local;
-use ferrum_deposit::config::datanode_config::DataNodeConfig;
+use ferrum_deposit::config::deposit_config::DepositConfig;
 use ferrum_deposit::core::datanode::DataNode;
 use ferrum_deposit::error::Result;
 use ferrum_deposit::proto::deposit_data_node_service_server::DepositDataNodeServiceServer;
@@ -9,8 +9,8 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = DataNodeConfig::from_xml_file("config/datanode.xml")?;
-    let addr = config.ipc_address.parse().unwrap();
+    let config = DepositConfig::from_xml_file("/config/datanode.xml")?;
+    let addr = format!("0.0.0.0:{}", config.datanode_service_port);
 
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
 
     Server::builder()
         .add_service(DepositDataNodeServiceServer::new(datanode))
-        .serve(addr)
+        .serve(addr.parse().unwrap())
         .await?;
 
     Ok(())

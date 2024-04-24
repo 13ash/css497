@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <depositConfig>
-    <data.dir>/deposit/</data.dir>
-    <namenode.address>namenode:50000</namenode.address>
+    <namenode.data.dir>/deposit/namenode/data</namenode.data.dir>
+    <namenode.hostname>namenode_foreman</namenode.hostname>
+    <datanode.data.dir>/deposit/datanode/data</datanode.data.dir>
+    <deposit.client.data.dir>/deposit/client/data/</deposit.client.data.dir>
+    <datanode.block.report.interval>300000</datanode.block.report.interval>
+    <datanode.heartbeat.interval>10000</datanode.heartbeat.interval>
+    <datanode.metrics.interval>20000</datanode.metrics.interval>
+    <datanode.service.port>50001</datanode.service.port>
+    <namenode.service.port>50000</namenode.service.port>
+    <replication.factor>3</replication.factor>
+    <namenode.edit.log.flush.interval>60000</namenode.edit.log.flush.interval>
 </depositConfig>

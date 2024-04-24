@@ -2,13 +2,6 @@ use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 
 use crate::block::{BlockMetadata, BlockStatus, BLOCK_SIZE};
-use ::tokio::sync::RwLock;
-use std::str::FromStr;
-use std::sync::Arc;
-use tonic::{async_trait, Request, Response, Status};
-use uuid::Uuid;
-
-use crate::config::namenode_config::NameNodeConfig;
 use crate::error::FerrumDepositError;
 use crate::proto::data_node_name_node_service_server::DataNodeNameNodeService;
 use crate::proto::{
@@ -18,7 +11,13 @@ use crate::proto::{
     PutFileRequest, PutFileResponse, RegistrationRequest, RegistrationResponse,
     WriteBlockUpdateRequest, WriteBlockUpdateResponse,
 };
+use ::tokio::sync::RwLock;
+use std::str::FromStr;
+use std::sync::Arc;
+use tonic::{async_trait, Request, Response, Status};
+use uuid::Uuid;
 
+use crate::config::deposit_config::DepositConfig;
 use crate::core::block_map::{BlockMap, BlockMapManager};
 use crate::core::edit_log::{EditLog, EditLogManager, Operation};
 use crate::proto::deposit_name_node_service_server::DepositNameNodeService;
@@ -115,8 +114,9 @@ trait DatanodeManager {
 pub struct NameNode {
     pub id: Uuid,
     pub data_dir: String,
-    pub ipc_address: String,
-    pub replication_factor: i8,
+    pub hostname: String,
+    pub port: u16,
+    pub replication_factor: u8,
     pub datanodes: RwLock<Vec<DataNode>>,
     pub namespace: RwLock<INode>,
     pub edit_log: RwLock<EditLog>,
@@ -126,25 +126,27 @@ pub struct NameNode {
 
 impl NameNode {
     /// Creates a new instance of NameNode from configuration.
-    pub async fn from_config(config: NameNodeConfig) -> Result<Self, FerrumDepositError> {
+    pub async fn from_config(config: DepositConfig) -> Result<Self, FerrumDepositError> {
         let id = Uuid::new_v4();
         let root = INode::Directory {
             path: PathBuf::from("/"),
             children: HashMap::new(),
         };
 
-        let edit_log_file_path = PathBuf::from(format!("{}/edit_log.log", config.data_dir.clone()));
+        let edit_log_file_path =
+            PathBuf::from(format!("{}/edit_log.log", config.namenode_data_dir.clone()));
 
         Ok(NameNode {
             id,
-            data_dir: config.data_dir,
-            ipc_address: config.ipc_address,
+            data_dir: config.namenode_data_dir,
+            hostname: config.namenode_hostname,
             datanodes: RwLock::new(Vec::new()),
             namespace: RwLock::new(root),
             block_map: RwLock::new(BlockMap::new()),
             edit_log: RwLock::new(EditLog::new(edit_log_file_path)),
             replication_factor: config.replication_factor,
-            flush_interval: config.flush_interval,
+            flush_interval: config.namenode_edit_log_flush_interval,
+            port: config.namenode_service_port,
         })
     }
 

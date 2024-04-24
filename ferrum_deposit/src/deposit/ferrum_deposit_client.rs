@@ -32,13 +32,15 @@ pub trait Client {
 
 pub struct FerrumDepositClient {
     pub data_dir: String,
-    pub namenode_address: String,
+    pub namenode_hostname: String,
+    pub namenode_port: u16,
 }
 impl FerrumDepositClient {
     pub fn from_config(config: DepositConfig) -> Self {
         FerrumDepositClient {
-            data_dir: config.data_dir,
-            namenode_address: config.namenode_address,
+            data_dir: config.deposit_client_data_dir,
+            namenode_hostname: config.namenode_hostname,
+            namenode_port: config.namenode_service_port,
         }
     }
 }

@@ -36,7 +36,7 @@ EXPOSE 50001
 EXPOSE 40001
 
 # Copy the compiled deposit datanode binary and config from the build stage to the final image
-COPY --from=build /root/ferrum_refinery_framework/ferrum_deposit/config/datanode.xml /config/datanode.xml
+COPY --from=build /root/ferrum_refinery_framework/ferrum_deposit/config/deposit.xml /config/deposit.xml
 COPY --from=build /root/ferrum_refinery_framework/target/release/datanode /bin/datanode
 
 # Copy the compiled refinery worker binary and config from the build stage to the final image

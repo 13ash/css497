@@ -6,7 +6,6 @@ package ferrum_refinery.proto;
 
 service WorkerService {
   rpc CompleteMapTask(MapTaskRequest) returns (MapTaskResponse) {}
-  rpc CompleteReduceTask(ReduceTaskRequest) returns (ReduceTaskResponse) {}
 }
 
 message MapTaskRequest {
@@ -21,21 +20,10 @@ message MapTaskRequest {
   optional string datanode_address = 9;
 }
 
-message ReduceTaskRequest {
-  string job_id = 1;
-  string task_id = 2;
-  bytes key = 3;
-  bytes value = 4;
-  string aggregator_address = 5;
-}
-
 message MapTaskResponse {
   bool success = 1;
 }
 
-message ReduceTaskResponse {
-  bool success = 1;
-}
 
 enum DataLocality {
   Local = 0;

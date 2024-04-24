@@ -11,6 +11,7 @@ pub enum FerrumRefineryError {
     UuidError(String),
     RegistrationError(String),
     HeartbeatError(String),
+    BufferOverflow,
 }
 
 impl From<Error> for FerrumRefineryError {

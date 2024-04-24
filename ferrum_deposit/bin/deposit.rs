@@ -41,9 +41,11 @@ enum Commands {
 async fn main() -> Result<()> {
     let args = Cli::parse();
     let config = DepositConfig::from_xml_file("/config/deposit.xml")?;
-    let mut namenode_client =
-        DepositNameNodeServiceClient::connect(format!("http://{}", config.namenode_address))
-            .await?;
+    let mut namenode_client = DepositNameNodeServiceClient::connect(format!(
+        "http://{}:{}",
+        config.namenode_hostname, config.namenode_service_port
+    ))
+    .await?;
     let deposit_client = FerrumDepositClient::from_config(config);
 
     match &args.command {

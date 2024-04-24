@@ -43,6 +43,7 @@ message CreateJobRequest {
 
 message CreateJobResponse {
   bool success = 1;
+  optional string job_id = 2;
 }
 
 
