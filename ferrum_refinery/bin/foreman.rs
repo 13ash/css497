@@ -9,7 +9,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 /// Foreman binary program
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = RefineryConfig::from_xml_file("config/refinery.xml")?;
+    let config = RefineryConfig::from_xml_file("/config/refinery.xml")?;
 
     // add logging
     tracing_subscriber::fmt()

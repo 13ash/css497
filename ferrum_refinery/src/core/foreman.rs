@@ -6,11 +6,11 @@ use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServ
 
 use crate::core::worker::WorkerStatus;
 use crate::proto::foreman_service_server::ForemanService;
-use crate::proto::worker_service_client::WorkerServiceClient;
+
 use crate::proto::DataLocality::{Local, Remote};
 use crate::proto::{
-    CreateJobRequest, CreateJobResponse, DataLocality, HeartBeatResponse, HeartbeatRequest,
-    MapTaskRequest, RegistrationRequest, RegistrationResponse,
+    CreateJobRequest, CreateJobResponse, DataLocality, GetReducerRequest, GetReducerResponse,
+    HeartBeatResponse, HeartbeatRequest, MapTaskRequest, RegistrationRequest, RegistrationResponse,
 };
 use ferrum_deposit::proto::GetRequest;
 use std::collections::{HashMap, VecDeque};
@@ -24,16 +24,15 @@ use uuid::Uuid;
 
 /// In memory representation of a worker node
 #[derive(Debug)]
-struct Worker {
+pub struct Worker {
     pub id: Uuid,
     pub hostname: String,
     pub port: u16,
-    pub status: WorkerStatus,
-    pub client: Arc<Mutex<WorkerServiceClient<Channel>>>,
+    pub cluster_number: u32,
 }
 
 #[derive(Debug)]
-enum TaskType {
+pub enum TaskType {
     Map,
     Reduce,
 }
@@ -47,7 +46,8 @@ pub struct Task {
     pub block_size: u64,
     pub task_type: TaskType,
     pub locality: DataLocality,
-    pub datanode_address: String,
+    pub datanode_hostname: String,
+    pub datanode_port: u16,
 }
 
 /// Job Coordinator
@@ -56,6 +56,7 @@ pub struct Foreman {
     pub id: Uuid,
     pub hostname: String,
     pub port: u16,
+    pub registered_workers: Mutex<u32>,
     pub deposit_namenode_client: Arc<Mutex<DepositNameNodeServiceClient<Channel>>>,
     pub task_queue: Arc<Mutex<VecDeque<Task>>>,
     workers: Arc<Mutex<HashMap<Uuid, Worker>>>,
@@ -64,6 +65,7 @@ impl Foreman {
     pub async fn from_config(config: RefineryConfig) -> Result<Self, FerrumRefineryError> {
         Ok(Foreman {
             id: Uuid::new_v4(),
+            registered_workers: Mutex::new(0),
             hostname: config.namenode_foreman_hostname.clone(),
             port: config.foreman_service_port,
             deposit_namenode_client: Arc::new(Mutex::new(
@@ -77,6 +79,40 @@ impl Foreman {
             workers: Arc::new(Mutex::new(HashMap::new())),
             task_queue: Arc::new(Mutex::new(VecDeque::new())),
         })
+    }
+
+    async fn create_map_task_request(&self, worker: &Worker, task: &Task) -> MapTaskRequest {
+
+        let worker_hostname = worker.hostname.clone();
+        let datanode_hostname: Option<String>;
+        let worker_port : Option<u32>;
+
+        let locality : DataLocality;
+        match worker_hostname == task.datanode_hostname {
+            true => {
+                locality = Local;
+                datanode_hostname = None;
+                worker_port = None;
+
+
+            }
+            false => {
+                locality = Remote;
+                datanode_hostname = Some(task.datanode_hostname.to_string());
+                worker_port = Some(worker.port as u32);
+            }
+        }
+
+        MapTaskRequest {
+            job_id: task.job_id.to_string(),
+            task_id: task.id.to_string(),
+            block_id: task.block_id.to_string(),
+            seq: task.block_seq,
+            block_size: task.block_size,
+            locality: locality as i32,
+            datanode_hostname,
+            datanode_service_port: worker_port
+        }
     }
 }
 
@@ -97,7 +133,9 @@ impl ForemanService for Foreman {
             let maybe_task = task_queue_guard.pop_front();
 
             return match maybe_task {
-                None => Ok(Response::new(HeartBeatResponse { success: true })),
+                None => Ok(Response::new(HeartBeatResponse {
+                    work: None,
+                })),
                 Some(task) => {
                     // grab the worker from the map
                     let worker_map_guard = self.workers.lock().await;
@@ -116,96 +154,64 @@ impl ForemanService for Foreman {
                         }
                         Some(worker) => {
                             info!("Sending task to worker {:?}:{:?}", worker, task);
-                            let mut worker_client_guard = worker.client.lock().await;
-
-                            let worker_address =
-                                format!("{}:{}", worker.hostname.clone(), worker.port);
-                            let locality;
-                            let optional_datanode_address;
-
-                            if task.datanode_address == worker_address {
-                                locality = Local as i32;
-                                optional_datanode_address = None;
-                            } else {
-                                locality = Remote as i32;
-                                optional_datanode_address = Some(task.datanode_address);
-                            }
-
-                            let map_task_request = MapTaskRequest {
-                                job_id: task.job_id.to_string(),
-                                task_id: task.id.to_string(),
-                                block_id: task.block_id.to_string(),
-                                seq: task.block_seq,
-                                block_size: task.block_size,
-                                key: vec![],
-                                value: vec![],
-                                locality,
-                                datanode_address: optional_datanode_address,
-                            };
-
-                            match worker_client_guard
-                                .complete_map_task(map_task_request)
-                                .await
-                            {
-                                Ok(response) => {
-                                    info!(
-                                        "Received Successful MapTask response: {:?}",
-                                        response.into_inner()
-                                    );
-                                    Ok(Response::new(HeartBeatResponse { success: true }))
-                                }
-                                Err(err) => {
-                                    info!("Received Failed MapTask response: {:?}", err.message());
-                                    Ok(Response::new(HeartBeatResponse { success: false }))
-                                }
-                            }
+                            let map_task_request = self.create_map_task_request(worker, &task).await;
+                            Ok(Response::new(HeartBeatResponse {
+                                work: Some(map_task_request)
+                            }))
                         }
                     };
                 }
             };
         }
         // worker is busy
-        Ok(Response::new(HeartBeatResponse { success: true }))
+        Ok(Response::new(HeartBeatResponse { work: None}))
     }
 
-    /// When a worker registers with the foreman, the foreman creates an atomically referenced
-    /// client to send tasks to the worker.
-    /// The foreman also places this worker into a HashMap for lookup.
+    /// The foreman places this worker into a HashMap for lookup.
     async fn register_with_foreman(
         &self,
         request: Request<RegistrationRequest>,
     ) -> Result<Response<RegistrationResponse>, Status> {
         let inner_request = request.into_inner();
-
+        info!("Received Worker Registration Request: {:?}", inner_request);
         let worker_id = inner_request.worker_id;
 
         let worker_uuid = Uuid::from_str(worker_id.as_str()).map_err(|_| {
             Status::from(FerrumRefineryError::UuidError("Invalid Uuid".to_string()))
         })?;
         let worker_hostname = inner_request.worker_hostname.clone();
-        let worker_port = inner_request.worker_port;
+        let worker_port: u16 = inner_request.worker_port as u16;
+
+        // grab the lock on the registered_workers mutex
+        let mut registered_workers_guard = self.registered_workers.lock().await;
+        let number_of_workers = *registered_workers_guard;
 
         let worker = Worker {
             id: worker_uuid,
+            cluster_number: number_of_workers,
             hostname: worker_hostname.clone(),
-            port: worker_port as u16,
-            status: WorkerStatus::Idle,
-            client: Arc::new(Mutex::new(
-                WorkerServiceClient::connect(format!("http://{}:{}", worker_hostname, worker_port))
-                    .await
-                    .unwrap(),
-            )),
+            port: worker_port,
         };
+
+        // increment the number of registered workers
+        *registered_workers_guard += 1;
+
+        // drop the lock on the registered workers mutex
+        drop(registered_workers_guard);
 
         let worker_list_clone = self.workers.clone();
 
         let mut worker_list_guard = worker_list_clone.lock().await;
 
         return match worker_list_guard.insert(worker_uuid, worker) {
-            None => Err(Status::from(FerrumRefineryError::RegistrationError(
-                "Failed to register".to_string(),
-            ))),
-            Some(_) => Ok(Response::new(RegistrationResponse { success: true })),
+            None => {
+                info!("New worker registered.");
+                Ok(Response::new(RegistrationResponse { success: true }))
+            }
+            Some(_) => {
+                info!("Worker already registered previously.");
+                Ok(Response::new(RegistrationResponse { success: true }))
+            }
         };
     }
 
@@ -248,7 +254,8 @@ impl ForemanService for Foreman {
                         block_size: block.block_size,
                         task_type: TaskType::Map,
                         locality: Remote,
-                        datanode_address: block.datanodes[0].to_string(),
+                        datanode_hostname: block.datanodes[0].split(':').next().unwrap().parse().unwrap(),
+                        datanode_port: block.datanodes[0].split(':').last().unwrap().parse().unwrap(),
                     };
 
                     let mut task_queue_guard = task_queue_clone.lock().await;
@@ -267,5 +274,27 @@ impl ForemanService for Foreman {
                 )))
             }
         }
+    }
+
+    async fn get_reducer(
+        &self,
+        request: Request<GetReducerRequest>,
+    ) -> Result<Response<GetReducerResponse>, Status> {
+        let inner_request = request.into_inner();
+        let reducer = inner_request.reducer;
+        let reducer_hostname: String;
+        let workers_map_guard = self.workers.lock().await;
+        for worker in workers_map_guard.iter() {
+            if worker.1.cluster_number == reducer {
+                reducer_hostname = worker.1.hostname.clone();
+                return Ok(Response::new(GetReducerResponse {
+                    hostname: reducer_hostname,
+                    port: worker.1.port as u32,
+                }));
+            }
+        }
+        return Err(Status::from(FerrumRefineryError::GetReducerError(
+            "No such worker is registered with the foreman.".to_string(),
+        )));
     }
 }

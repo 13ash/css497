@@ -8,6 +8,7 @@ service ForemanService {
   rpc SendHeartBeat(HeartbeatRequest) returns (HeartBeatResponse) {}
   rpc RegisterWithForeman(RegistrationRequest) returns (RegistrationResponse) {}
   rpc CreateJob(CreateJobRequest) returns (CreateJobResponse) {}
+  rpc GetReducer(GetReducerRequest) returns (GetReducerResponse) {}
 }
 
 message RegistrationRequest {
@@ -33,7 +34,7 @@ enum WorkerStatus {
 }
 
 message HeartBeatResponse {
-  bool success = 1;
+  optional MapTaskRequest work = 1;
 }
 
 message CreateJobRequest {
@@ -44,6 +45,31 @@ message CreateJobRequest {
 message CreateJobResponse {
   bool success = 1;
   optional string job_id = 2;
+}
+
+message GetReducerRequest {
+  uint32 reducer = 1;
+}
+
+message GetReducerResponse {
+  string hostname = 1;
+  uint32 port = 2;
+}
+
+enum DataLocality {
+  Local = 0;
+  Remote = 1;
+}
+
+message MapTaskRequest {
+  string job_id = 1;
+  string task_id = 2;
+  string block_id = 3;
+  uint64 seq = 4;
+  uint64 block_size = 5;
+  DataLocality locality = 8;
+  optional string datanode_hostname = 9;
+  optional uint32 datanode_service_port = 10;
 }
 
 

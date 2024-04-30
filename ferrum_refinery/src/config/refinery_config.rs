@@ -7,9 +7,6 @@ pub struct RefineryConfig {
     #[serde(rename = "namenode.foreman.hostname")]
     pub namenode_foreman_hostname: String,
 
-    #[serde(rename = "datanode.worker.hostname")]
-    pub datanode_worker_hostname: String,
-
     #[serde(rename = "aggregator.hostname")]
     pub aggregator_hostname: String,
 
@@ -49,8 +46,8 @@ pub struct RefineryConfig {
     #[serde(rename = "worker.metrics.interval")]
     pub worker_metrics_interval: u16,
 
-    #[serde(rename = "datanode.metrics.interval")]
-    pub datanode_metrics_interval: u16,
+    #[serde(rename = "number.of.workers")]
+    pub number_of_workers: usize,
 }
 
 impl RefineryConfig {

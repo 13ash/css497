@@ -11,6 +11,7 @@ pub enum FerrumRefineryError {
     UuidError(String),
     RegistrationError(String),
     HeartbeatError(String),
+    GetReducerError(String),
     BufferOverflow,
 }
 
@@ -30,6 +31,9 @@ impl From<FerrumRefineryError> for Status {
     fn from(error: FerrumRefineryError) -> Self {
         match error {
             FerrumRefineryError::TransportError(msg) => Status::internal(msg),
+            FerrumRefineryError::JobCreationError(msg) => Status::internal(msg),
+            FerrumRefineryError::HeartbeatError(msg) => Status::internal(msg),
+            FerrumRefineryError::GetReducerError(msg) => Status::internal(msg),
             _ => Status::unknown("Unknown error"),
         }
     }

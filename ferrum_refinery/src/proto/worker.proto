@@ -5,28 +5,16 @@ package ferrum_refinery.proto;
 
 
 service WorkerService {
-  rpc CompleteMapTask(MapTaskRequest) returns (MapTaskResponse) {}
+  rpc SendKeyValuePair(SendKeyValuePairRequest) returns (SendKeyValuePairResponse) {}
 }
 
-message MapTaskRequest {
-  string job_id = 1;
-  string task_id = 2;
-  string block_id = 3;
-  uint64 seq = 4;
-  uint64 block_size = 5;
-  bytes key = 6;
-  bytes value = 7;
-  DataLocality locality = 8;
-  optional string datanode_address = 9;
+message SendKeyValuePairRequest {
+  bytes key = 1;
+  bytes value = 2;
 }
 
-message MapTaskResponse {
+message SendKeyValuePairResponse {
   bool success = 1;
 }
 
-
-enum DataLocality {
-  Local = 0;
-  Remote = 1;
-}
 

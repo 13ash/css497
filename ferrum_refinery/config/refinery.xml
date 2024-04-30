@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <refineryConfig>
     <namenode.foreman.hostname>namenode_foreman</namenode.foreman.hostname>
-    <datanode.worker.hostname>datanode_worker</datanode.worker.hostname>
     <aggregator.hostname>aggregator</aggregator.hostname>
     <aggregator.service.port>60000</aggregator.service.port>
     <foreman.service.port>40000</foreman.service.port>
@@ -15,6 +14,5 @@
     <aggregator.data.dir>refinery/aggregator/data</aggregator.data.dir>
     <worker.heartbeat.interval>5000</worker.heartbeat.interval>
     <worker.metrics.interval>15000</worker.metrics.interval>
-    <datanode.heartbeat.interval>5000</datanode.heartbeat.interval>
-    <datanode.metrics.interval>15000</datanode.metrics.interval>
+    <number.of.workers>3</number.of.workers>
 </refineryConfig>

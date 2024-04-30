@@ -2,33 +2,37 @@ use crate::api::map::{KeyValue, Mapper};
 use crate::api::reduce::Reducer;
 use crate::config::refinery_config::RefineryConfig;
 use crate::proto::foreman_service_client::ForemanServiceClient;
-use crate::proto::foreman_service_server::ForemanService;
 use crate::proto::worker_service_server::WorkerService;
-use crate::proto::{
-    HeartbeatRequest, MapTaskRequest, MapTaskResponse, RegistrationRequest, TaskResult,
-};
+use crate::proto::{GetReducerRequest, HeartbeatRequest, RegistrationRequest, SendKeyValuePairRequest, SendKeyValuePairResponse};
 use std::cmp::PartialEq;
+use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use crate::core::worker::WorkerStatus::{Busy, Idle};
-use crate::framework::errors::FerrumRefineryError;
+
 use crate::proto::aggregation_service_client::AggregationServiceClient;
+
 use bytes::Bytes;
 use std::sync::Arc;
 use std::time::Duration;
 use sys_info::{loadavg, mem_info};
 use tokio::io::AsyncReadExt;
+
 use tokio::sync::Mutex;
+
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
-use tracing::{error, info};
+use crate::core::worker::DataLocality::{Local, Remote};
+use crate::framework::errors::FerrumRefineryError;
 
-use crate::core::worker::DataLocality::Remote;
 use ferrum_deposit::proto::deposit_data_node_service_client::DepositDataNodeServiceClient;
 use ferrum_deposit::proto::GetBlockRequest;
+use tracing::{error, info};
+use crate::proto::worker_service_client::WorkerServiceClient;
 
-enum DataLocality {
+pub enum DataLocality {
     Local,
     Remote,
 }
@@ -36,13 +40,13 @@ enum DataLocality {
 impl PartialEq<DataLocality> for i32 {
     fn eq(&self, other: &DataLocality) -> bool {
         match other {
-            DataLocality::Local => *self == 0,
-            DataLocality::Remote => *self == 1,
+            Local => *self == 0,
+            Remote => *self == 1,
         }
     }
 }
 
-struct HealthMetrics {
+pub struct HealthMetrics {
     pub cpu_load: f32,
     pub memory_usage: u64,
 }
@@ -51,12 +55,15 @@ pub struct Worker {
     pub id: Uuid,
     pub hostname: String,
     pub port: u16,
+    pub map_output_kv_pairs: Mutex<HashMap<Bytes, Bytes>>,
+    pub datanode_service_port: u16,
     pub metrics_interval: Duration,
     pub heartbeat_interval: Duration,
     pub metrics: Arc<Mutex<HealthMetrics>>,
     pub status: Arc<Mutex<WorkerStatus>>,
     pub mapper: Arc<Mutex<dyn Mapper>>,
     pub reducer: Arc<Mutex<dyn Reducer>>,
+    pub number_of_workers: usize,
     pub deposit_data_dir: String,
     pub aggregator_client: Arc<Mutex<AggregationServiceClient<Channel>>>,
     // client to communicate with the result aggregator
@@ -82,10 +89,13 @@ impl Worker {
     pub async fn new(config: RefineryConfig, mapper: impl Mapper, reducer: impl Reducer) -> Self {
         Worker {
             id: Uuid::new_v4(),
-            hostname: config.datanode_worker_hostname,
+            hostname: sys_info::hostname().unwrap(),
             port: config.worker_service_port,
+            datanode_service_port: config.datanode_service_port,
             metrics_interval: Duration::from_millis(config.worker_metrics_interval as u64),
             heartbeat_interval: Duration::from_millis(config.worker_heartbeat_interval as u64),
+            map_output_kv_pairs: Mutex::new(HashMap::new()),
+            number_of_workers: config.number_of_workers,
             metrics: Arc::new(Mutex::new(HealthMetrics {
                 cpu_load: 0.0,
                 memory_usage: 0,
@@ -99,16 +109,16 @@ impl Worker {
                     "http://{}:{}",
                     config.aggregator_hostname, config.aggregator_service_port
                 ))
-                .await
-                .unwrap(),
+                    .await
+                    .unwrap(),
             )),
             foreman_client: Arc::new(Mutex::new(
                 ForemanServiceClient::connect(format!(
                     "http://{}:{}",
                     config.namenode_foreman_hostname, config.foreman_service_port
                 ))
-                .await
-                .unwrap(),
+                    .await
+                    .unwrap(),
             )),
         }
     }
@@ -126,9 +136,7 @@ impl Worker {
             worker_port: self.port.clone() as u32,
         });
 
-        let foreman_client_clone = self.foreman_client.clone();
-
-        let mut foreman_client_guard = foreman_client_clone.lock().await;
+        let mut foreman_client_guard = self.foreman_client.lock().await;
 
         info!("Sending registration request...");
         let result = foreman_client_guard.register_with_foreman(request).await;
@@ -146,12 +154,20 @@ impl Worker {
         }
     }
 
+    /// This function spawns a new thread to heartbeat to the foreman at the specified interval.
+    /// The foreman responds to this heartbeat with an optional work task that this worker needs to complete.
+    /// If such a task exists, the heartbeat worker thread spawns a new thread and works on this task
+    /// once the map task is finished, the worker hashes each key in the map output to determine the reducer to send the key,value pair.
     pub async fn start_heartbeat_worker(&self) {
         let foreman_client_clone = self.foreman_client.clone();
         let metrics_clone = self.metrics.clone();
         let id = self.id;
         let status_clone = self.status.clone();
+        let mapper_clone = self.mapper.clone();
         let interval = self.heartbeat_interval.clone();
+        let data_dir_clone = self.deposit_data_dir.clone();
+        let datanode_service_port_clone = self.datanode_service_port.clone();
+        let num_reducers = self.number_of_workers.clone();
 
         // spawn a thread
         tokio::spawn(async move {
@@ -175,22 +191,151 @@ impl Worker {
                     health_metrics: Some(metrics),
                     status,
                 });
+                drop(status_guard);
 
                 let mut foreman_client_guard = foreman_client_clone.lock().await;
 
                 info!("Sending heartbeat...");
                 match foreman_client_guard.send_heart_beat(request).await {
                     Ok(response) => {
-                        info!(
-                            "Received heartbeat response: {}",
-                            response.into_inner().success
-                        );
-                    }
+                        info!("Received heartbeat response: {:?}",response);
+
+                        match response.into_inner().work {
+                            None => {
+                                info!("foreman responded with no work.");
+                            }
+                            Some(work) => {
+                                info!("foreman responded with work.");
+                                let locality = work.locality;
+                                let mut buffer = vec![0; work.block_size as usize];
+
+                                // input data is located on this datanode
+                                if locality == Local {
+                                    info!("Input data is local.");
+                                    let local_path = format!(
+                                        "{}/{}_{}.dat",
+                                        data_dir_clone,
+                                        work.block_id.clone(),
+                                        work.seq
+                                    );
+                                    match tokio::fs::File::open(local_path).await {
+                                        Ok(mut file) => match file.read_exact(&mut *buffer).await {
+                                            Ok(bytes) => {
+                                                info!("file read: {}", bytes);
+                                            },
+                                            Err(err) => {
+                                                error!("{}", err);
+                                            }
+                                        },
+                                        Err(err) => {
+                                            error!("{}", err);
+                                        }
+                                    }
+                                } else {
+                                    info!("Input data is remote.");
+                                    let hostname = work.datanode_hostname.unwrap();
+                                    let datanode_addr = format!("http://{}:{}", hostname, datanode_service_port_clone);
+
+                                    // try to open connection via the datanode client
+                                    match DepositDataNodeServiceClient::connect(datanode_addr).await {
+                                        Ok(mut client) => {
+                                            info!("connected to remote datanode.");
+                                            let get_block_request = GetBlockRequest {
+                                                block_id: work.block_id,
+                                            };
+                                            let mut byte_offset = 0;
+                                            match client.get_block_streamed(get_block_request).await {
+                                                Ok(stream) => {
+                                                    let mut inner_stream = stream.into_inner();
+                                                    while let Ok(Some(chunk_result)) =
+                                                        inner_stream.message().await.map_err(|e| {
+                                                            FerrumRefineryError::TaskError(e.message().to_string())
+                                                        })
+                                                    {
+                                                        let chunk_size = chunk_result.chunked_data.len();
+                                                        if byte_offset + chunk_size > buffer.len() {
+                                                            error!("buffer overflow!");
+                                                        }
+                                                        buffer[byte_offset..byte_offset + chunk_size]
+                                                            .copy_from_slice(&chunk_result.chunked_data);
+                                                        byte_offset += chunk_size;
+                                                    }
+                                                    info!("downloaded data from remote datanode");
+                                                }
+                                                Err(err) => {
+                                                    error!("{}",err.to_string());
+                                                }
+                                            }
+                                        }
+                                        Err(err) => {
+                                            error!("{}", err.to_string());
+                                        }
+                                    }
+                                }
+
+                                // now that we have the data let's get to work
+                                info!("let's get to work!");
+
+                                let mut status_guard = status_clone.lock().await;
+                                info!("setting status to busy");
+                                *status_guard = Busy;
+
+
+                                let kv = KeyValue {
+                                    key: Bytes::from(vec![]),
+                                    value: Bytes::from(buffer),
+                                };
+                                let mapper_guard = mapper_clone.lock().await;
+                                let map_output = mapper_guard.map(kv).await;
+                                info!("Total Key Value Pairs: {}", map_output.len());
+
+                                for (key, value) in map_output.iter() {
+
+                                    // hash the key into an integer
+                                    let mut hasher = DefaultHasher::new();
+                                    for byte in key.iter() {
+                                        byte.hash(&mut hasher);
+                                    }
+                                    let hash = hasher.finish();
+                                    let reducer_number = (hash as usize) % num_reducers;
+
+                                    match foreman_client_guard.get_reducer(Request::new(GetReducerRequest {
+                                        reducer: reducer_number as u32,
+                                    })).await {
+                                        Ok(response) => {
+                                            let inner_response = response.into_inner();
+
+                                            let reducer_hostname = inner_response.hostname;
+                                            let reducer_port = inner_response.port;
+                                            let reducer_addr = format!("http://{}:{}", reducer_hostname, reducer_port);
+                                            // connect to reducer, and send kv pair
+                                            let mut worker_service_client = WorkerServiceClient::connect(reducer_addr).await.unwrap();
+
+                                            match worker_service_client.send_key_value_pair(Request::new(SendKeyValuePairRequest {
+                                                key: key.to_vec(),
+                                                value: value.to_vec(),
+                                            })).await {
+                                                Ok(_) => {}
+                                                Err(error) => {
+                                                    error!("{:?}", error);
+                                                }
+                                            }
+                                        }
+                                        Err(error) => {
+                                            error!("{:?}", error);
+                                        }
+                                    }
+                                }
+                                *status_guard = Idle;
+                                drop(status_guard);
+                                drop(mapper_guard);
+                            }
+                        }
+                    },
                     Err(err) => {
-                        error!("Heartbeat error: {}", err.message().to_string())
+                        error!("Failure occurred!: {}", err.to_string());
                     }
                 }
-                drop(foreman_client_guard);
             }
         });
     }
@@ -209,7 +354,7 @@ impl Worker {
 
                 // gather metrics
                 let mem_info = mem_info().unwrap();
-                let mem_usage = (mem_info.total / mem_info.avail) * 100;
+                let mem_usage = (mem_info.avail / mem_info.total) * 100;
                 let cpu_load_avg = loadavg().unwrap().five as f32;
 
                 // get the lock to the metrics object
@@ -228,129 +373,21 @@ impl Worker {
     }
 }
 
+/// This service function shuffles the map result keys to the determined reducer based on a simple
+/// hashing partition function
 #[tonic::async_trait]
 impl WorkerService for Worker {
-    async fn complete_map_task(
+    async fn send_key_value_pair(
         &self,
-        request: Request<MapTaskRequest>,
-    ) -> Result<Response<MapTaskResponse>, Status> {
-        // first set status to working
-
-        let mut status_guard = self.status.lock().await;
-
-        // dereference the status guard to set the value at the memory location to busy
-
-        *status_guard = Busy;
-
-        drop(status_guard);
-
+        request: Request<SendKeyValuePairRequest>,
+    ) -> Result<Response<SendKeyValuePairResponse>, Status> {
         let inner_request = request.into_inner();
-        info!("Received task from foreman: {:?}", inner_request);
-        let block_size = inner_request.block_size as usize;
+        let key = Bytes::from(inner_request.key);
+        let value = Bytes::from(inner_request.value);
 
-        // see if we need to grab the input data, or if the data is local to this node
-        let locality = inner_request.locality;
+        let mut reducer_kv_map_guard = self.map_output_kv_pairs.lock().await;
+        reducer_kv_map_guard.insert(key, value);
 
-        // let's allocate some memory to hold the block
-        let mut buffer = vec![0u8; block_size];
-
-        // if the block is located on this datanode
-        // load the data from /deposit/data/{block_id}_{seq_num}.dat into memory
-        if locality == DataLocality::Local {
-            // next, we'll attempt to read the file into the buffer
-            let file_path_string = format!(
-                "{}/{}_{}.dat",
-                self.deposit_data_dir, inner_request.block_id, inner_request.seq
-            );
-
-            match tokio::fs::File::open(file_path_string).await {
-                Ok(mut file) => {
-                    file.read_exact(&mut *buffer).await?;
-                }
-
-                Err(err) => {
-                    return Err(Status::from(FerrumRefineryError::TaskError(
-                        err.to_string(),
-                    )));
-                }
-            }
-        }
-
-        // if the block is located on another datanode
-        // connect to the other datanode and stream the block into memory
-
-        if locality == Remote {
-            let deposit_datanode_addr =
-                format!("http://{}", inner_request.datanode_address.unwrap());
-            let mut deposit_client = DepositDataNodeServiceClient::connect(deposit_datanode_addr)
-                .await
-                .unwrap();
-            let get_block_request = GetBlockRequest {
-                block_id: inner_request.block_id,
-            };
-            let mut stream = deposit_client
-                .get_block_streamed(Request::new(get_block_request))
-                .await
-                .map_err(|e| FerrumRefineryError::TaskError(e.message().to_string()))?
-                .into_inner();
-
-            let mut offset = 0;
-            while let Some(block_chunk) = stream
-                .message()
-                .await
-                .map_err(|e| FerrumRefineryError::TaskError(e.to_string()))?
-            {
-                let chunk_data = block_chunk.chunked_data.as_slice();
-                let chunk_data_size = chunk_data.len();
-                if offset + chunk_data_size > buffer.len() {
-                    return Err(Status::from(FerrumRefineryError::BufferOverflow));
-                }
-                buffer[offset..offset + chunk_data_size].copy_from_slice(chunk_data);
-                offset += chunk_data_size;
-            }
-        }
-
-        let kv = KeyValue {
-            key: Bytes::from(inner_request.key),
-            value: Bytes::from(buffer),
-        };
-
-        let mapper_clone = self.mapper.clone();
-
-        // acquire the mapper lock
-        let mapper_guard = mapper_clone.lock().await;
-
-        // do the map task
-        let map_result = mapper_guard.map(kv).await;
-
-        info!("Finished map task...reducing");
-
-        let reducer_clone = self.reducer.clone();
-
-        let reducer_guard = reducer_clone.lock().await;
-
-        let reduce_result = reducer_guard.reduce(map_result).await;
-
-        return match reduce_result {
-            Ok(result) => {
-                info!("Finished reduce task...sending to aggregator");
-                // send the results to the aggregator
-                let aggregator_request = Request::new(TaskResult {
-                    task_id: inner_request.task_id,
-                    job_id: inner_request.job_id,
-                    worker_id: self.id.to_string(),
-                    result: result.to_vec(),
-                });
-                let aggregator_clone = self.aggregator_client.clone();
-                let mut aggregator_guard = aggregator_clone.lock().await;
-                match aggregator_guard.send_result(aggregator_request).await {
-                    Ok(_) => Ok(Response::new(MapTaskResponse { success: true })),
-                    Err(err) => Err(err),
-                }
-            }
-            Err(err) => Err(Status::from(FerrumRefineryError::TaskError(
-                err.to_string(),
-            ))),
-        };
+        Ok(Response::new(SendKeyValuePairResponse { success: true }))
     }
 }

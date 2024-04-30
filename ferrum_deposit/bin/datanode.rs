@@ -9,7 +9,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = DepositConfig::from_xml_file("/config/datanode.xml")?;
+    let config = DepositConfig::from_xml_file("/config/deposit.xml")?;
     let addr = format!("0.0.0.0:{}", config.datanode_service_port);
 
     tracing_subscriber::fmt()

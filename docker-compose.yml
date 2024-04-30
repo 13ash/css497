@@ -21,6 +21,10 @@ services:
       - namenode-data:/refinery/namenode/data
       - ./ferrum_refinery/config/refinery.xml:/config/refinery.xml
       - foreman-data:/refinery/foreman/data
+    environment:
+      - DATANODE1_HOST=datanode1_worker1
+      - DATANODE2_HOST=datanode2_worker2
+      - DATANODE3_HOST=datanode3_worker3
 
   datanode1_worker1:
     image: datanode_worker

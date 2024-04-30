@@ -11,18 +11,18 @@ use tokio::io::AsyncWriteExt;
 use mockall::automock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub(crate) enum Operation {
+pub enum Operation {
     #[default]
     PUT,
     DELETE,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
-pub(crate) struct LogEntry {
-    pub(crate) lsn: i32,
-    pub(crate) date_time: DateTime<Utc>,
-    pub(crate) operation: Operation,
-    pub(crate) target_path: PathBuf,
+pub struct LogEntry {
+    pub lsn: i32,
+    pub date_time: DateTime<Utc>,
+    pub operation: Operation,
+    pub target_path: PathBuf,
 }
 
 #[cfg_attr(test, automock)]

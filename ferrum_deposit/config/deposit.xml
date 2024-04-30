@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <depositConfig>
-    <namenode.data.dir>/deposit/namenode/data</namenode.data.dir>
+    <namenode.data.dir>/refinery/namenode/data</namenode.data.dir>
     <namenode.hostname>namenode_foreman</namenode.hostname>
-    <datanode.data.dir>/deposit/datanode/data</datanode.data.dir>
-    <deposit.client.data.dir>/deposit/client/data/</deposit.client.data.dir>
+    <datanode.data.dir>/refinery/datanode/data</datanode.data.dir>
+    <deposit.client.data.dir>/refinery/client/data/</deposit.client.data.dir>
     <datanode.block.report.interval>300000</datanode.block.report.interval>
     <datanode.heartbeat.interval>10000</datanode.heartbeat.interval>
     <datanode.metrics.interval>20000</datanode.metrics.interval>
