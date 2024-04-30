@@ -7,6 +7,7 @@ pub enum FerrumRefineryError {
     DepositClientError(String),
     TransportError(String),
     JobCreationError(String),
+    FinishShuffleError(String),
     TaskError(String),
     UuidError(String),
     RegistrationError(String),
@@ -34,6 +35,7 @@ impl From<FerrumRefineryError> for Status {
             FerrumRefineryError::JobCreationError(msg) => Status::internal(msg),
             FerrumRefineryError::HeartbeatError(msg) => Status::internal(msg),
             FerrumRefineryError::GetReducerError(msg) => Status::internal(msg),
+            FerrumRefineryError::FinishShuffleError(msg) => Status::internal(msg),
             _ => Status::unknown("Unknown error"),
         }
     }

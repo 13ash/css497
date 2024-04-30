@@ -9,6 +9,7 @@ service ForemanService {
   rpc RegisterWithForeman(RegistrationRequest) returns (RegistrationResponse) {}
   rpc CreateJob(CreateJobRequest) returns (CreateJobResponse) {}
   rpc GetReducer(GetReducerRequest) returns (GetReducerResponse) {}
+  rpc FinishShuffle(FinishShuffleRequest) returns (FinishShuffleResponse) {}
 }
 
 message RegistrationRequest {
@@ -31,6 +32,16 @@ message HeartbeatRequest {
 enum WorkerStatus {
   Idle = 0;
   Busy = 1;
+}
+
+message FinishShuffleRequest {
+  string job_id = 1;
+  string task_id = 2;
+}
+
+message FinishShuffleResponse {
+  bool success = 1;
+
 }
 
 message HeartBeatResponse {

@@ -6,6 +6,7 @@ package ferrum_refinery.proto;
 
 service WorkerService {
   rpc SendKeyValuePair(SendKeyValuePairRequest) returns (SendKeyValuePairResponse) {}
+  rpc StartReduce(StartReduceRequest) returns (StartReduceResponse) {}
 }
 
 message SendKeyValuePairRequest {
@@ -14,6 +15,14 @@ message SendKeyValuePairRequest {
 }
 
 message SendKeyValuePairResponse {
+  bool success = 1;
+}
+
+message StartReduceRequest {
+  bool reduce = 1;
+}
+
+message StartReduceResponse {
   bool success = 1;
 }
 

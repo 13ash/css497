@@ -3,7 +3,7 @@ use crate::api::reduce::Reducer;
 use crate::config::refinery_config::RefineryConfig;
 use crate::proto::foreman_service_client::ForemanServiceClient;
 use crate::proto::worker_service_server::WorkerService;
-use crate::proto::{GetReducerRequest, HeartbeatRequest, RegistrationRequest, SendKeyValuePairRequest, SendKeyValuePairResponse};
+use crate::proto::{GetReducerRequest, HeartbeatRequest, RegistrationRequest, SendKeyValuePairRequest, SendKeyValuePairResponse, StartReduceRequest, StartReduceResponse};
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -389,5 +389,13 @@ impl WorkerService for Worker {
         reducer_kv_map_guard.insert(key, value);
 
         Ok(Response::new(SendKeyValuePairResponse { success: true }))
+    }
+
+
+/// This service function reduces all key value pairs that have been shuffled to this reducer.
+/// Once the reduction is complete, the reducer sends the results to the aggregator for upload back
+/// into the deposit
+    async fn start_reduce(&self, _request: Request<StartReduceRequest>) -> Result<Response<StartReduceResponse>, Status> {
+        todo!()
     }
 }
