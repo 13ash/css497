@@ -4,16 +4,37 @@ import "src/proto/commons.proto";
 package ferrum_refinery.proto;
 
 service AggregationService {
-  rpc SendResult(TaskResult) returns(SendResultResponse) {}
+  rpc CreateAggregationJob(CreateAggregationJobRequest) returns (CreateAggregationJobResponse) {}
+  rpc AttachWorker(AttachWorkerRequest) returns (AttachWorkerResponse) {}
+  rpc SendResult(SendResultRequest) returns(SendResultResponse) {}
 }
 
-message TaskResult {
+message SendResultRequest {
   string task_id = 1;
   string job_id = 2;
   string worker_id = 3;
   bytes result = 4;
 }
 
-message SendResultResponse {
+message AttachWorkerRequest {
+  string task_id = 1;
+  string job_id = 2;
+  string worker_id = 3;
+}
+
+message CreateAggregationJobRequest {
+  string job_id = 1;
+  string output_path = 2;
+}
+
+message CreateAggregationJobResponse {
   bool success = 1;
+}
+
+message AttachWorkerResponse {
+  bool success = 1;
+}
+
+message SendResultResponse {
+  uint64 bytes = 1;
 }

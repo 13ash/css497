@@ -19,7 +19,8 @@ message SendKeyValuePairResponse {
 }
 
 message StartReduceRequest {
-  bool reduce = 1;
+  string task_id = 1;
+  string job_id = 2;
 }
 
 message StartReduceResponse {

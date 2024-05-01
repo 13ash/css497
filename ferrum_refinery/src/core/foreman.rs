@@ -7,18 +7,22 @@ use ferrum_deposit::proto::deposit_name_node_service_client::DepositNameNodeServ
 use crate::core::worker::WorkerStatus;
 use crate::proto::foreman_service_server::ForemanService;
 
+use crate::proto::worker_service_client::WorkerServiceClient;
 use crate::proto::DataLocality::{Local, Remote};
-use crate::proto::{CreateJobRequest, CreateJobResponse, DataLocality, GetReducerRequest, GetReducerResponse, HeartBeatResponse, HeartbeatRequest, MapTaskRequest, RegistrationRequest, RegistrationResponse, FinishShuffleRequest, FinishShuffleResponse, StartReduceRequest};
+use crate::proto::{
+    CreateJobRequest, CreateJobResponse, DataLocality, FinishShuffleRequest, FinishShuffleResponse,
+    GetReducerRequest, GetReducerResponse, HeartBeatResponse, HeartbeatRequest, MapTaskRequest,
+    RegistrationRequest, RegistrationResponse, StartReduceRequest,
+};
 use ferrum_deposit::proto::GetRequest;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tonic::transport::{Channel};
+use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 use tracing::{error, info};
 use uuid::Uuid;
-use crate::proto::worker_service_client::WorkerServiceClient;
 
 /// In memory representation of a worker node
 #[derive(Debug)]
@@ -51,7 +55,7 @@ pub struct Task {
 #[derive(Debug)]
 pub struct Job {
     tasks: HashSet<Uuid>,
-    workers: HashSet<Uuid>
+    workers: HashSet<Uuid>,
 }
 
 /// Job Coordinator
@@ -83,24 +87,21 @@ impl Foreman {
             )),
             workers: Arc::new(Mutex::new(HashMap::new())),
             task_queue: Arc::new(Mutex::new(VecDeque::new())),
-            job_map: Arc::new(Mutex::new(HashMap::new()))
+            job_map: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
     async fn create_map_task_request(&self, worker: &Worker, task: &Task) -> MapTaskRequest {
-
         let worker_hostname = worker.hostname.clone();
         let datanode_hostname: Option<String>;
-        let worker_port : Option<u32>;
+        let worker_port: Option<u32>;
 
-        let locality : DataLocality;
+        let locality: DataLocality;
         match worker_hostname == task.datanode_hostname {
             true => {
                 locality = Local;
                 datanode_hostname = None;
                 worker_port = None;
-
-
             }
             false => {
                 locality = Remote;
@@ -117,7 +118,7 @@ impl Foreman {
             block_size: task.block_size,
             locality: locality as i32,
             datanode_hostname,
-            datanode_service_port: worker_port
+            datanode_service_port: worker_port,
         }
     }
 }
@@ -139,9 +140,7 @@ impl ForemanService for Foreman {
             let maybe_task = task_queue_guard.pop_front();
 
             return match maybe_task {
-                None => Ok(Response::new(HeartBeatResponse {
-                    work: None,
-                })),
+                None => Ok(Response::new(HeartBeatResponse { work: None })),
                 Some(task) => {
                     // grab the worker from the map
                     let worker_map_guard = self.workers.lock().await;
@@ -165,16 +164,19 @@ impl ForemanService for Foreman {
                             let mut job_map_guard = self.job_map.lock().await;
                             match job_map_guard.get_mut(&task.job_id) {
                                 None => {
-                                    return Err(Status::from(FerrumRefineryError::HeartbeatError("Job not found in job map.".to_string())));
+                                    return Err(Status::from(FerrumRefineryError::HeartbeatError(
+                                        "Job not found in job map.".to_string(),
+                                    )));
                                 }
                                 Some(job) => {
                                     job.workers.insert(worker.id);
                                 }
                             }
 
-                            let map_task_request = self.create_map_task_request(worker, &task).await;
+                            let map_task_request =
+                                self.create_map_task_request(worker, &task).await;
                             Ok(Response::new(HeartBeatResponse {
-                                work: Some(map_task_request)
+                                work: Some(map_task_request),
                             }))
                         }
                     };
@@ -182,7 +184,7 @@ impl ForemanService for Foreman {
             };
         }
         // worker is busy
-        Ok(Response::new(HeartBeatResponse { work: None}))
+        Ok(Response::new(HeartBeatResponse { work: None }))
     }
 
     /// The foreman places this worker into a HashMap for lookup.
@@ -276,8 +278,18 @@ impl ForemanService for Foreman {
                         block_size: block.block_size,
                         task_type: TaskType::Map,
                         locality: Remote,
-                        datanode_hostname: block.datanodes[0].split(':').next().unwrap().parse().unwrap(),
-                        datanode_port: block.datanodes[0].split(':').last().unwrap().parse().unwrap(),
+                        datanode_hostname: block.datanodes[0]
+                            .split(':')
+                            .next()
+                            .unwrap()
+                            .parse()
+                            .unwrap(),
+                        datanode_port: block.datanodes[0]
+                            .split(':')
+                            .last()
+                            .unwrap()
+                            .parse()
+                            .unwrap(),
                     };
 
                     job.tasks.insert(work_task.id.clone());
@@ -327,7 +339,10 @@ impl ForemanService for Foreman {
 
     // once all workers report completion of key shuffling, the foreman notifies each worker to reduce their keys
     // and send the output to the aggregator for final processing and uploading to the deposit
-    async fn finish_shuffle(&self, request: Request<FinishShuffleRequest>) -> Result<Response<FinishShuffleResponse>, Status> {
+    async fn finish_shuffle(
+        &self,
+        request: Request<FinishShuffleRequest>,
+    ) -> Result<Response<FinishShuffleResponse>, Status> {
         let inner_request = request.into_inner();
         let job_id_string = inner_request.job_id;
         let task_id_string = inner_request.task_id;
@@ -335,14 +350,24 @@ impl ForemanService for Foreman {
         let maybe_job_uuid = Uuid::try_parse(job_id_string.as_str());
         let maybe_task_uuid = Uuid::try_parse(task_id_string.as_str());
 
-        let job_uuid = maybe_job_uuid.map_err(|_| Status::from(FerrumRefineryError::UuidError("Invalid Uuid string.".to_string())))?;
-        let task_uuid = maybe_task_uuid.map_err(|_| Status::from(FerrumRefineryError::UuidError("Invalid Uuid string".to_string())))?;
+        let job_uuid = maybe_job_uuid.map_err(|_| {
+            Status::from(FerrumRefineryError::UuidError(
+                "Invalid Uuid string.".to_string(),
+            ))
+        })?;
+        let task_uuid = maybe_task_uuid.map_err(|_| {
+            Status::from(FerrumRefineryError::UuidError(
+                "Invalid Uuid string".to_string(),
+            ))
+        })?;
 
         let mut job_map_guard = self.job_map.lock().await;
 
         match job_map_guard.get_mut(&job_uuid) {
             None => {
-                return Err(Status::from(FerrumRefineryError::FinishShuffleError("Job not found.".to_string())));
+                return Err(Status::from(FerrumRefineryError::FinishShuffleError(
+                    "Job not found.".to_string(),
+                )));
             }
             Some(job) => {
                 match job.tasks.remove(&task_uuid) {
@@ -354,14 +379,34 @@ impl ForemanService for Foreman {
                             for worker_uuid in job.workers.iter() {
                                 match worker_map_guard.get(worker_uuid) {
                                     None => {
-                                        return Err(Status::from(FerrumRefineryError::FinishShuffleError("worker not found.".to_string())));
+                                        return Err(Status::from(
+                                            FerrumRefineryError::FinishShuffleError(
+                                                "worker not found.".to_string(),
+                                            ),
+                                        ));
                                     }
                                     Some(worker) => {
-                                        let mut worker_service_client = WorkerServiceClient::connect(format!("http://{}:{}", worker.hostname, worker.port)).await.map_err(|_| Status::from(FerrumRefineryError::FinishShuffleError("Failed to connect to worker.".to_string())))?;
-                                        match worker_service_client.start_reduce(Request::new(StartReduceRequest {
-                                            reduce: true,
-                                        })).await {
-                                            Ok(_) => {},
+                                        let mut worker_service_client =
+                                            WorkerServiceClient::connect(format!(
+                                                "http://{}:{}",
+                                                worker.hostname, worker.port
+                                            ))
+                                            .await
+                                            .map_err(|_| {
+                                                Status::from(
+                                                    FerrumRefineryError::FinishShuffleError(
+                                                        "Failed to connect to worker.".to_string(),
+                                                    ),
+                                                )
+                                            })?;
+                                        match worker_service_client
+                                            .start_reduce(Request::new(StartReduceRequest {
+                                                task_id: task_id_string.clone(),
+                                                job_id: job_id_string.clone(),
+                                            }))
+                                            .await
+                                        {
+                                            Ok(_) => {}
                                             Err(err) => {
                                                 return Err(err);
                                             }
@@ -372,19 +417,17 @@ impl ForemanService for Foreman {
                         }
                         // otherwise, we simply return Ok
                         else {
-                            return Ok(Response::new(FinishShuffleResponse {
-                                success: true,
-                            }));
+                            return Ok(Response::new(FinishShuffleResponse { success: true }));
                         }
                     }
                     false => {
-                        return Err(Status::from(FerrumRefineryError::FinishShuffleError("Task not found in related job.".to_string())));
+                        return Err(Status::from(FerrumRefineryError::FinishShuffleError(
+                            "Task not found in related job.".to_string(),
+                        )));
                     }
                 }
             }
         }
-        Ok(Response::new(FinishShuffleResponse {
-            success: true
-        }))
+        Ok(Response::new(FinishShuffleResponse { success: true }))
     }
 }

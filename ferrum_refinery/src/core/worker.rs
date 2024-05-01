@@ -3,7 +3,7 @@ use crate::api::reduce::Reducer;
 use crate::config::refinery_config::RefineryConfig;
 use crate::proto::foreman_service_client::ForemanServiceClient;
 use crate::proto::worker_service_server::WorkerService;
-use crate::proto::{GetReducerRequest, HeartbeatRequest, RegistrationRequest, SendKeyValuePairRequest, SendKeyValuePairResponse, StartReduceRequest, StartReduceResponse};
+use crate::proto::{FinishShuffleRequest, GetReducerRequest, HeartbeatRequest, RegistrationRequest, SendKeyValuePairRequest, SendKeyValuePairResponse, SendResultRequest, StartReduceRequest, StartReduceResponse};
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -27,10 +27,10 @@ use uuid::Uuid;
 use crate::core::worker::DataLocality::{Local, Remote};
 use crate::framework::errors::FerrumRefineryError;
 
+use crate::proto::worker_service_client::WorkerServiceClient;
 use ferrum_deposit::proto::deposit_data_node_service_client::DepositDataNodeServiceClient;
 use ferrum_deposit::proto::GetBlockRequest;
 use tracing::{error, info};
-use crate::proto::worker_service_client::WorkerServiceClient;
 
 pub enum DataLocality {
     Local,
@@ -109,16 +109,16 @@ impl Worker {
                     "http://{}:{}",
                     config.aggregator_hostname, config.aggregator_service_port
                 ))
-                    .await
-                    .unwrap(),
+                .await
+                .unwrap(),
             )),
             foreman_client: Arc::new(Mutex::new(
                 ForemanServiceClient::connect(format!(
                     "http://{}:{}",
                     config.namenode_foreman_hostname, config.foreman_service_port
                 ))
-                    .await
-                    .unwrap(),
+                .await
+                .unwrap(),
             )),
         }
     }
@@ -198,7 +198,7 @@ impl Worker {
                 info!("Sending heartbeat...");
                 match foreman_client_guard.send_heart_beat(request).await {
                     Ok(response) => {
-                        info!("Received heartbeat response: {:?}",response);
+                        info!("Received heartbeat response: {:?}", response);
 
                         match response.into_inner().work {
                             None => {
@@ -222,7 +222,7 @@ impl Worker {
                                         Ok(mut file) => match file.read_exact(&mut *buffer).await {
                                             Ok(bytes) => {
                                                 info!("file read: {}", bytes);
-                                            },
+                                            }
                                             Err(err) => {
                                                 error!("{}", err);
                                             }
@@ -234,36 +234,47 @@ impl Worker {
                                 } else {
                                     info!("Input data is remote.");
                                     let hostname = work.datanode_hostname.unwrap();
-                                    let datanode_addr = format!("http://{}:{}", hostname, datanode_service_port_clone);
+                                    let datanode_addr = format!(
+                                        "http://{}:{}",
+                                        hostname, datanode_service_port_clone
+                                    );
 
                                     // try to open connection via the datanode client
-                                    match DepositDataNodeServiceClient::connect(datanode_addr).await {
+                                    match DepositDataNodeServiceClient::connect(datanode_addr).await
+                                    {
                                         Ok(mut client) => {
                                             info!("connected to remote datanode.");
                                             let get_block_request = GetBlockRequest {
                                                 block_id: work.block_id,
                                             };
                                             let mut byte_offset = 0;
-                                            match client.get_block_streamed(get_block_request).await {
+                                            match client.get_block_streamed(get_block_request).await
+                                            {
                                                 Ok(stream) => {
                                                     let mut inner_stream = stream.into_inner();
                                                     while let Ok(Some(chunk_result)) =
                                                         inner_stream.message().await.map_err(|e| {
-                                                            FerrumRefineryError::TaskError(e.message().to_string())
+                                                            FerrumRefineryError::TaskError(
+                                                                e.message().to_string(),
+                                                            )
                                                         })
                                                     {
-                                                        let chunk_size = chunk_result.chunked_data.len();
+                                                        let chunk_size =
+                                                            chunk_result.chunked_data.len();
                                                         if byte_offset + chunk_size > buffer.len() {
                                                             error!("buffer overflow!");
                                                         }
-                                                        buffer[byte_offset..byte_offset + chunk_size]
-                                                            .copy_from_slice(&chunk_result.chunked_data);
+                                                        buffer
+                                                            [byte_offset..byte_offset + chunk_size]
+                                                            .copy_from_slice(
+                                                                &chunk_result.chunked_data,
+                                                            );
                                                         byte_offset += chunk_size;
                                                     }
                                                     info!("downloaded data from remote datanode");
                                                 }
                                                 Err(err) => {
-                                                    error!("{}",err.to_string());
+                                                    error!("{}", err.to_string());
                                                 }
                                             }
                                         }
@@ -280,7 +291,6 @@ impl Worker {
                                 info!("setting status to busy");
                                 *status_guard = Busy;
 
-
                                 let kv = KeyValue {
                                     key: Bytes::from(vec![]),
                                     value: Bytes::from(buffer),
@@ -290,7 +300,6 @@ impl Worker {
                                 info!("Total Key Value Pairs: {}", map_output.len());
 
                                 for (key, value) in map_output.iter() {
-
                                     // hash the key into an integer
                                     let mut hasher = DefaultHasher::new();
                                     for byte in key.iter() {
@@ -299,22 +308,36 @@ impl Worker {
                                     let hash = hasher.finish();
                                     let reducer_number = (hash as usize) % num_reducers;
 
-                                    match foreman_client_guard.get_reducer(Request::new(GetReducerRequest {
-                                        reducer: reducer_number as u32,
-                                    })).await {
+                                    match foreman_client_guard
+                                        .get_reducer(Request::new(GetReducerRequest {
+                                            reducer: reducer_number as u32,
+                                        }))
+                                        .await
+                                    {
                                         Ok(response) => {
                                             let inner_response = response.into_inner();
 
                                             let reducer_hostname = inner_response.hostname;
                                             let reducer_port = inner_response.port;
-                                            let reducer_addr = format!("http://{}:{}", reducer_hostname, reducer_port);
+                                            let reducer_addr = format!(
+                                                "http://{}:{}",
+                                                reducer_hostname, reducer_port
+                                            );
                                             // connect to reducer, and send kv pair
-                                            let mut worker_service_client = WorkerServiceClient::connect(reducer_addr).await.unwrap();
+                                            let mut worker_service_client =
+                                                WorkerServiceClient::connect(reducer_addr)
+                                                    .await
+                                                    .unwrap();
 
-                                            match worker_service_client.send_key_value_pair(Request::new(SendKeyValuePairRequest {
-                                                key: key.to_vec(),
-                                                value: value.to_vec(),
-                                            })).await {
+                                            match worker_service_client
+                                                .send_key_value_pair(Request::new(
+                                                    SendKeyValuePairRequest {
+                                                        key: key.to_vec(),
+                                                        value: value.to_vec(),
+                                                    },
+                                                ))
+                                                .await
+                                            {
                                                 Ok(_) => {}
                                                 Err(error) => {
                                                     error!("{:?}", error);
@@ -329,9 +352,26 @@ impl Worker {
                                 *status_guard = Idle;
                                 drop(status_guard);
                                 drop(mapper_guard);
+
+                                // we're done shuffling the keys, so let's notify the foreman
+
+                                match foreman_client_guard
+                                    .finish_shuffle(Request::new(FinishShuffleRequest {
+                                        job_id: work.job_id,
+                                        task_id: work.task_id,
+                                    }))
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        info!("Successfully notified the foreman of shuffling");
+                                    }
+                                    Err(err) => {
+                                        error!("Received error msg: {}", err.message().to_string());
+                                    }
+                                }
                             }
                         }
-                    },
+                    }
                     Err(err) => {
                         error!("Failure occurred!: {}", err.to_string());
                     }
@@ -391,11 +431,44 @@ impl WorkerService for Worker {
         Ok(Response::new(SendKeyValuePairResponse { success: true }))
     }
 
+    /// This service function reduces all key value pairs that have been shuffled to this reducer.
+    /// Once the reduction is complete, the reducer sends the results to the aggregator for upload back
+    /// into the deposit
+    async fn start_reduce(
+        &self,
+        request: Request<StartReduceRequest>,
+    ) -> Result<Response<StartReduceResponse>, Status> {
+        let inner_request = request.into_inner();
+        let kv_map_guard = self.map_output_kv_pairs.lock().await;
+        let reducer_guard = self.reducer.lock().await;
+        let mut aggregator_client_guard = self.aggregator_client.lock().await;
 
-/// This service function reduces all key value pairs that have been shuffled to this reducer.
-/// Once the reduction is complete, the reducer sends the results to the aggregator for upload back
-/// into the deposit
-    async fn start_reduce(&self, _request: Request<StartReduceRequest>) -> Result<Response<StartReduceResponse>, Status> {
-        todo!()
+        let mut map_output = Vec::new();
+        for (key, value) in kv_map_guard.iter() {
+            map_output.push((key.clone(), value.clone()));
+        }
+
+        match reducer_guard.reduce(map_output).await {
+            Ok(result) => {
+                match aggregator_client_guard.send_result(Request::new(SendResultRequest {
+                    task_id: inner_request.task_id,
+                    job_id: inner_request.job_id,
+                    worker_id: self.id.to_string(),
+                    result: result.to_vec(),
+                })).await {
+                    Ok(_) => {
+                        Ok(Response::new(StartReduceResponse {
+                            success: true,
+                        }))
+                    }
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
+            }
+            Err(err) => {
+                return Err(Status::internal(err.to_string()));
+            }
+        }
     }
 }

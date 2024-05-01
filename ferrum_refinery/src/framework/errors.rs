@@ -8,6 +8,7 @@ pub enum FerrumRefineryError {
     TransportError(String),
     JobCreationError(String),
     FinishShuffleError(String),
+    AggregationError(String),
     TaskError(String),
     UuidError(String),
     RegistrationError(String),
