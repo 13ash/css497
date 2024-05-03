@@ -7,19 +7,19 @@ use tonic::transport::Channel;
 use tracing::info;
 
 pub struct Refinery {
-    pub input_location: String,
+    pub input_location: Vec<String>,
     pub output_location: String,
     pub foreman_client: Arc<Mutex<ForemanServiceClient<Channel>>>,
 }
 
 impl Refinery {
     pub fn new(
-        input_location: &str,
+        input_location: Vec<String>,
         output_location: &str,
         foreman_client: Arc<Mutex<ForemanServiceClient<Channel>>>,
     ) -> Self {
         Refinery {
-            input_location: input_location.to_string(),
+            input_location,
             output_location: output_location.to_string(),
             foreman_client,
         }

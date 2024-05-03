@@ -13,7 +13,7 @@ use crate::framework::errors::FerrumRefineryError;
 use crate::framework::errors::FerrumRefineryError::AggregationError;
 
 
-struct TaskWorker {
+pub struct TaskWorker {
     pub id : Uuid,
     pub task: Uuid,
 }

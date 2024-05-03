@@ -18,8 +18,8 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Submit {
-        #[arg(short, long)]
-        input: String,
+        #[arg(short, long, num_args = 1..)]
+        input: Vec<String>,
         #[arg(short, long)]
         output: String,
     },
@@ -51,7 +51,7 @@ async fn main() -> ferrum_deposit::error::Result<()> {
             let wrapped_client = Arc::new(Mutex::new(foreman_client));
 
             // create a refinery object
-            let refinery = Refinery::new(input, output, wrapped_client);
+            let refinery = Refinery::new(input.to_vec(), output, wrapped_client);
 
             match refinery.refine().await {
                 Ok(_) => {

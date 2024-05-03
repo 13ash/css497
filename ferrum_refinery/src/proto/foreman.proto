@@ -49,7 +49,7 @@ message HeartBeatResponse {
 }
 
 message CreateJobRequest {
-  string input_data = 1;
+  repeated string input_data = 1;
   string output_data = 2;
 }
 

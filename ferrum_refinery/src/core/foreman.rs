@@ -14,7 +14,7 @@ use crate::proto::{
     GetReducerRequest, GetReducerResponse, HeartBeatResponse, HeartbeatRequest, MapTaskRequest,
     RegistrationRequest, RegistrationResponse, StartReduceRequest,
 };
-use ferrum_deposit::proto::GetRequest;
+use ferrum_deposit::proto::{GetRequest};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -52,7 +52,7 @@ pub struct Task {
     pub datanode_port: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Job {
     tasks: HashSet<Uuid>,
     workers: HashSet<Uuid>,
@@ -245,74 +245,81 @@ impl ForemanService for Foreman {
     ) -> Result<Response<CreateJobResponse>, Status> {
         let inner_request = request.into_inner();
 
-        let input_file_path = inner_request.input_data;
+        let input_file_paths = inner_request.input_data;
         let _output_file_path = inner_request.output_data;
 
         let namenode_client_clone = self.deposit_namenode_client.clone();
 
         let mut namenode_client_guard = namenode_client_clone.lock().await;
 
-        let get_file_request = GetRequest {
-            path: input_file_path,
+        // create a new job
+
+        let job_id = Uuid::new_v4();
+        let mut job = Job {
+            tasks: HashSet::new(),
+            workers: HashSet::new(),
         };
 
-        match namenode_client_guard.get(get_file_request).await {
-            Ok(response) => {
-                let job_id = Uuid::new_v4(); // create new job_id
-                let mut job = Job {
-                    tasks: HashSet::new(),
-                    workers: HashSet::new(),
-                };
+        // for each file provided in the input
+        for path in input_file_paths {
 
-                let inner_response = response.into_inner();
-                let file_blocks = inner_response.file_blocks;
+            // make sure the file exists in the deposit
+            let get_file_request = GetRequest {
+                path
+            };
 
-                let task_queue_clone = self.task_queue.clone();
+            match namenode_client_guard.get(get_file_request).await {
+                Ok(response) => {
 
-                for block in file_blocks {
-                    let work_task = Task {
-                        id: Uuid::new_v4(),
-                        job_id: job_id.clone(),
-                        block_id: block.block_id.parse().unwrap(),
-                        block_seq: block.seq as u64,
-                        block_size: block.block_size,
-                        task_type: TaskType::Map,
-                        locality: Remote,
-                        datanode_hostname: block.datanodes[0]
-                            .split(':')
-                            .next()
-                            .unwrap()
-                            .parse()
-                            .unwrap(),
-                        datanode_port: block.datanodes[0]
-                            .split(':')
-                            .last()
-                            .unwrap()
-                            .parse()
-                            .unwrap(),
-                    };
 
-                    job.tasks.insert(work_task.id.clone());
+                    let inner_response = response.into_inner();
+                    let file_blocks = inner_response.file_blocks;
 
-                    let mut task_queue_guard = task_queue_clone.lock().await;
-                    task_queue_guard.push_back(work_task);
+                    let task_queue_clone = self.task_queue.clone();
+
+                    // create a new task for each block of each file
+
+                    for block in file_blocks {
+                        let work_task = Task {
+                            id: Uuid::new_v4(),
+                            job_id: job_id.clone(),
+                            block_id: block.block_id.parse().unwrap(),
+                            block_seq: block.seq as u64,
+                            block_size: block.block_size,
+                            task_type: TaskType::Map,
+                            locality: Remote,
+                            datanode_hostname: block.datanodes[0]
+                                .split(':')
+                                .next()
+                                .unwrap()
+                                .parse()
+                                .unwrap(),
+                            datanode_port: block.datanodes[0]
+                                .split(':')
+                                .last()
+                                .unwrap()
+                                .parse()
+                                .unwrap(),
+                        };
+
+                        job.tasks.insert(work_task.id.clone());
+
+                        let mut task_queue_guard = task_queue_clone.lock().await;
+                        task_queue_guard.push_back(work_task);
+                    }
+                    let mut job_map_guard = self.job_map.lock().await;
+                    job_map_guard.insert(job_id.clone(), job.clone());
+                },
+                Err(err) => {
+                    return Err(err);
                 }
-
-                let mut job_map_guard = self.job_map.lock().await;
-                job_map_guard.insert(job_id.clone(), job);
-
-                Ok(Response::new(CreateJobResponse {
-                    success: true,
-                    job_id: Some(job_id.to_string()),
-                }))
-            }
-            Err(err) => {
-                error!("Failed to create job: {}", err.to_string());
-                Err(Status::from(FerrumRefineryError::JobCreationError(
-                    err.to_string(),
-                )))
             }
         }
+
+        Ok(Response::new(CreateJobResponse {
+            success: true,
+            job_id: Some(job_id.to_string()),
+        }))
     }
 
     async fn get_reducer(

@@ -74,6 +74,60 @@ services:
       - DATANODE1_HOST=datanode1_worker1
       - DATANODE2_HOST=datanode2_worker2
 
+  datanode4_worker4:
+    hostname: datanode4_worker4
+    image: datanode_worker
+    ports:
+      - "50004:50001"
+      - "40004:40001"
+    volumes:
+      - ./ferrum_deposit/config/datanode.xml:/config/datanode.xml
+      - datanode4-data:/refinery/datanode/data
+      - ./ferrum_refinery/config/refinery.xml:/config/refinery.xml
+      - worker4-data:/refinery/worker/data
+    environment:
+      - NAMENODE_HOST=namenode_foreman
+      - DATANODE1_HOST=datanode1_worker1
+      - DATANODE2_HOST=datanode2_worker2
+      - DATANODE3_HOST=datanode3_worker3
+
+  datanode5_worker5:
+    hostname: datanode5_worker5
+    image: datanode_worker
+    ports:
+      - "50005:50001"
+      - "40005:40001"
+    volumes:
+      - ./ferrum_deposit/config/datanode.xml:/config/datanode.xml
+      - datanode5-data:/refinery/datanode/data
+      - ./ferrum_refinery/config/refinery.xml:/config/refinery.xml
+      - worker5-data:/refinery/worker/data
+    environment:
+      - NAMENODE_HOST=namenode_foreman
+      - DATANODE1_HOST=datanode1_worker1
+      - DATANODE2_HOST=datanode2_worker2
+      - DATANODE3_HOST=datanode3_worker3
+      - DATANODE4_HOST=datanode4_worker4
+
+  datanode6_worker6:
+    hostname: datanode6_worker6
+    image: datanode_worker
+    ports:
+      - "50006:50001"
+      - "40006:40001"
+    volumes:
+      - ./ferrum_deposit/config/datanode.xml:/config/datanode.xml
+      - datanode6-data:/refinery/datanode/data
+      - ./ferrum_refinery/config/refinery.xml:/config/refinery.xml
+      - worker6-data:/refinery/worker/data
+    environment:
+      - NAMENODE_HOST=namenode_foreman
+      - DATANODE1_HOST=datanode1_worker1
+      - DATANODE2_HOST=datanode2_worker2
+      - DATANODE3_HOST=datanode3_worker3
+      - DATANODE4_HOST=datanode4_worker4
+      - DATANODE5_HOST=datanode5_worker5
+
   refinery_deposit:
     hostname: refinery_deposit
     image: refinery_deposit
@@ -85,9 +139,15 @@ volumes:
   datanode1-data:
   datanode2-data:
   datanode3-data:
+  datanode4-data:
+  datanode5-data:
+  datanode6-data:
   worker1-data:
   worker2-data:
   worker3-data:
+  worker4-data:
+  worker5-data:
+  worker6-data:
   foreman-data:
   aggregator-data:
   refinery_deposit-data:
